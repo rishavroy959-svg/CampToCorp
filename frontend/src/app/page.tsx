@@ -24,11 +24,11 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/dashboard/tpo" className="btn-primary text-base px-6 py-3 w-full sm:w-auto shadow-md">
-              Open Command Dashboard
+              Placement Officer Dashboard
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <Link href="/auth/login" className="btn-secondary text-base px-6 py-3 w-full sm:w-auto">
-              Switch Persona / Sign In
+            <Link href="/dashboard/student" className="btn-secondary text-base px-6 py-3 w-full sm:w-auto">
+              Student Career Portal
             </Link>
           </div>
         </div>
@@ -56,63 +56,47 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Role-Based Portals Showcase */}
-      <section id="personas" className="py-20 px-6 max-w-7xl mx-auto w-full">
+      {/* Role-Based Portals Showcase (Strictly TPO & Student) */}
+      <section id="personas" className="py-20 px-6 max-w-5xl mx-auto w-full">
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl font-bold tracking-tight text-campus-text-primary mb-3">
-            Tailored Experiences for Every Stakeholder
+            Two Unified Portals for Campus Placement
           </h2>
           <p className="text-campus-text-secondary text-base">
-            Dedicated dashboards engineered for Placement Officers, Students, Recruiters, and Faculty Mentors.
+            Engineered exclusively for College Placement Officers and Graduating Students.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-2 gap-8">
           {/* Card 1: Placement Officer */}
-          <div className="card-squarespace flex flex-col justify-between">
+          <div className="card-squarespace flex flex-col justify-between p-8 border border-campus-border hover:shadow-lg transition-all">
             <div>
               <div className="w-12 h-12 rounded-xl bg-blue-50 text-campus-primary flex items-center justify-center mb-6">
                 <Calendar className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-campus-text-primary mb-2">Placement Officer (TPO)</h3>
+              <h3 className="text-2xl font-bold text-campus-text-primary mb-3">College Placement Officer (TPO)</h3>
               <p className="text-campus-text-secondary text-sm leading-relaxed mb-6">
-                Multi-drive scheduling with instant overlap and venue conflict warnings. Track offer letters, PPOs, and department-level conversion rates in real time.
+                Centralized command center for managing on-campus recruitment drives, automated venue collision detection, verified student candidate eligibility, and batch-wide placement statistics.
               </p>
             </div>
-            <Link href="/dashboard/tpo" className="text-sm font-semibold text-campus-primary flex items-center gap-1.5 hover:gap-2.5 transition-all">
+            <Link href="/dashboard/tpo" className="btn-primary text-sm flex items-center justify-center gap-2">
               Launch TPO Dashboard <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
           {/* Card 2: Student */}
-          <div className="card-squarespace flex flex-col justify-between">
+          <div className="card-squarespace flex flex-col justify-between p-8 border border-campus-border hover:shadow-lg transition-all">
             <div>
               <div className="w-12 h-12 rounded-xl bg-emerald-50 text-campus-success flex items-center justify-center mb-6">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-bold text-campus-text-primary mb-2">Student Portal</h3>
+              <h3 className="text-2xl font-bold text-campus-text-primary mb-3">Student Placement Portal</h3>
               <p className="text-campus-text-secondary text-sm leading-relaxed mb-6">
-                Personalized readiness ring (0–100), transparent skill-gap diagnostics, and explainable recommendations indicating why you matched or missed target job roles.
+                Personalized employability readiness index (0–100), transparent skill-gap diagnostics, real-time tracking of eligible placement drives, and application status.
               </p>
             </div>
-            <Link href="/dashboard/student" className="text-sm font-semibold text-campus-primary flex items-center gap-1.5 hover:gap-2.5 transition-all">
-              View Readiness Score <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {/* Card 3: Recruiter */}
-          <div className="card-squarespace flex flex-col justify-between">
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-indigo-50 text-campus-info flex items-center justify-center mb-6">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-bold text-campus-text-primary mb-2">Recruiter & Mentor</h3>
-              <p className="text-campus-text-secondary text-sm leading-relaxed mb-6">
-                Instant JD skill extraction, pre-screened eligible candidate pools, and automated mentor escalations for at-risk candidates before season ends.
-              </p>
-            </div>
-            <Link href="/dashboard/recruiter" className="text-sm font-semibold text-campus-primary flex items-center gap-1.5 hover:gap-2.5 transition-all">
-              Explore Candidate Pools <ArrowRight className="w-4 h-4" />
+            <Link href="/dashboard/student" className="btn-secondary text-sm flex items-center justify-center gap-2">
+              Launch Student Portal <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>

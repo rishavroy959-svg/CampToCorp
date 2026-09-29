@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone, date
 from typing import List, Optional
 from pydantic import BaseModel
@@ -6,8 +7,17 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db, Base, engine
 from app.models.drive import Drive, DriveStatus, SlotType, ConflictLog, ConflictType, ConflictSeverity
-from app.schemas.drive import DriveCreate, DriveUpdate, DriveResponse, ConflictResolveRequest, ConflictLogResponse
+from app.schemas.drive import (
+    DriveCreate,
+    DriveUpdate,
+    DriveResponse,
+    ConflictResolveRequest,
+    ConflictLogResponse,
+    JDParseRequest,
+    JDParseResponse,
+)
 from app.services.scheduler import check_drive_conflicts, suggest_alternative_slots
+from app.services.ai_matching import parse_text_skills
 from app.api.deps import require_role
 from app.models.user import User, UserRole
 
@@ -134,7 +144,7 @@ def reschedule_drive(
 def create_drive(
     drive_in: DriveCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.PLACEMENT_OFFICER, UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.PLACEMENT_OFFICER, UserRole.RECRUITER, UserRole.ADMIN])),
 ):
     """Create a new recruitment drive and automatically detect date/venue overlaps."""
     Base.metadata.create_all(bind=engine)
@@ -167,6 +177,81 @@ def create_drive(
     db.commit()
 
     return drive
+
+@router.put("/{drive_id}", response_model=DriveResponse)
+def update_drive(
+    drive_id: int,
+    drive_update: DriveUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.PLACEMENT_OFFICER, UserRole.RECRUITER, UserRole.ADMIN])),
+):
+    """Update drive details including job description and eligibility criteria (PRD FR-B1, FR-B3)."""
+    drive = db.query(Drive).filter(Drive.id == drive_id).first()
+    if not drive:
+        raise HTTPException(status_code=404, detail="Drive not found")
+        
+    update_data = drive_update.dict(exclude_unset=True)
+    
+    # Check if scheduling details changed to re-evaluate conflicts
+    recheck_conflicts = any(k in update_data for k in ["drive_date", "slot", "venue"])
+    
+    for field, val in update_data.items():
+        setattr(drive, field, val)
+        
+    if recheck_conflicts:
+        all_drives = db.query(Drive).filter(Drive.id != drive.id, Drive.status != DriveStatus.CANCELLED).all()
+        new_conflicts = check_drive_conflicts(drive, all_drives)
+        drive.has_conflict = len(new_conflicts) > 0
+        drive.conflict_summary = new_conflicts[0]["description"] if new_conflicts else None
+
+    drive.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(drive)
+    return drive
+
+@router.post("/parse-jd", response_model=JDParseResponse)
+def parse_job_description(
+    req: JDParseRequest,
+    current_user: User = Depends(require_role([UserRole.PLACEMENT_OFFICER, UserRole.RECRUITER, UserRole.ADMIN])),
+):
+    """Analyze job description text and auto-extract skills, eligibility cutoffs, and branch targets (PRD FR-B1)."""
+    text = req.text
+    skills = parse_text_skills(text)
+    
+    # Heuristic CGPA extraction (e.g. CGPA >= 7.5, 7.0+ CGPA, etc.)
+    cgpa_match = re.search(r'(?:cgpa|gpa|pointer)[\s:=><]+([6-9]\.?[0-9]?)', text, re.IGNORECASE)
+    min_cgpa = float(cgpa_match.group(1)) if cgpa_match else 7.0
+    
+    # Branch detection
+    branches = []
+    text_upper = text.upper()
+    for b in ["CSE", "IT", "ECE", "MECH", "CIVIL", "EE"]:
+        if re.search(r'\b' + b + r'\b', text_upper) or (b == "CSE" and "COMPUTER SCIENCE" in text_upper) or (b == "IT" and "INFORMATION TECHNOLOGY" in text_upper):
+            if b not in branches:
+                branches.append(b)
+    if not branches:
+        branches = ["CSE", "IT"]
+        
+    # Backlogs detection
+    backlogs = 0
+    if re.search(r'no\s+active\s+backlog|0\s+backlog|zero\s+backlog', text, re.IGNORECASE):
+        backlogs = 0
+    elif re.search(r'1\s+backlog|up\s+to\s+1\s+backlog', text, re.IGNORECASE):
+        backlogs = 1
+        
+    # Role title heuristic
+    first_line = text.strip().split('\n')[0][:80]
+    detected_role = first_line if len(first_line) > 5 and len(first_line) < 60 else None
+
+    return JDParseResponse(
+        detected_skills=[s.title() for s in skills],
+        suggested_min_cgpa=min_cgpa,
+        suggested_branches=branches,
+        suggested_backlogs=backlogs,
+        detected_role=detected_role,
+        character_count=len(text),
+        word_count=len(text.split()),
+    )
 
 @router.post("/conflicts/{conflict_id}/resolve", response_model=ConflictLogResponse)
 def resolve_conflict(

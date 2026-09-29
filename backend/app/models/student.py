@@ -60,9 +60,14 @@ class Student(Base):
     status = Column(Enum(StudentStatus), default=StudentStatus.UNPLACED, index=True)
     mentor_assigned = Column(String, nullable=True)
     
+    primary_domain = Column(String, default="Full Stack Development")
+    is_verified = Column(Boolean, default=True)
+    profile_completed_pct = Column(Integer, default=95)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     matches = relationship("StudentJobMatch", back_populates="student", cascade="all, delete-orphan")
     offers = relationship("Offer", back_populates="student", cascade="all, delete-orphan")
+    applications = relationship("DriveApplication", back_populates="student", cascade="all, delete-orphan")

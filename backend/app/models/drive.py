@@ -56,12 +56,23 @@ class Drive(Base):
     has_conflict = Column(Boolean, default=False, index=True)
     conflict_summary = Column(String, nullable=True)
     
+    # Additional Drive Attributes (Specification Deliverables)
+    job_type = Column(String, default="FULL_TIME")  # FULL_TIME, INTERNSHIP, PPO
+    category = Column(String, default="CORE")        # SUPER_DREAM (>20 LPA), DREAM (10-20 LPA), CORE, MASS
+    location = Column(String, default="Bengaluru / Hyderabad")
+    deadline = Column(String, default="2026-10-14")
+    min_tenth_percentage = Column(Float, default=60.0)
+    min_twelfth_percentage = Column(Float, default=60.0)
+    batch_year = Column(Integer, default=2026)
+    rounds = Column(JSON, default=list)  # list of rounds
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     matches = relationship("StudentJobMatch", back_populates="drive", cascade="all, delete-orphan")
     offers = relationship("Offer", back_populates="drive", cascade="all, delete-orphan")
+    applications = relationship("DriveApplication", back_populates="drive", cascade="all, delete-orphan")
     conflicts = relationship("ConflictLog", foreign_keys="ConflictLog.drive_id", back_populates="drive", cascade="all, delete-orphan")
 
 class ConflictLog(Base):

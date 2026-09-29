@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth, PRESET_PERSONAS } from "@/lib/auth-context";
+import { useAuth, PRESET_PERSONAS, ACTIVE_ROLES } from "@/lib/auth-context";
 import { UserRole } from "@/types";
 import {
   ChevronDown,
@@ -28,11 +28,9 @@ export const Navbar: React.FC = () => {
     switchRole(role);
     setDropdownOpen(false);
 
-    // Redirect to corresponding dashboard
-    if (role === "PLACEMENT_OFFICER") router.push("/dashboard/tpo");
-    else if (role === "STUDENT") router.push("/dashboard/student");
-    else if (role === "RECRUITER") router.push("/dashboard/recruiter");
-    else if (role === "MENTOR") router.push("/dashboard/mentor");
+    // Redirect to corresponding dashboard (only Student or TPO)
+    if (role === "STUDENT") router.push("/dashboard/student");
+    else router.push("/dashboard/tpo");
   };
 
   const roleMeta: Record<
@@ -40,28 +38,28 @@ export const Navbar: React.FC = () => {
     { label: string; icon: React.ReactNode; color: string; badgeColor: string }
   > = {
     PLACEMENT_OFFICER: {
-      label: "Placement Officer",
+      label: "Placement Officer (TPO)",
       icon: <Shield className="w-3.5 h-3.5 text-blue-600" />,
       color: "text-blue-700 bg-blue-50 border-blue-200",
       badgeColor: "bg-blue-600",
     },
     STUDENT: {
-      label: "Student",
+      label: "Student Candidate",
       icon: <GraduationCap className="w-3.5 h-3.5 text-emerald-600" />,
       color: "text-emerald-700 bg-emerald-50 border-emerald-200",
       badgeColor: "bg-emerald-600",
     },
     RECRUITER: {
-      label: "Recruiter",
-      icon: <Briefcase className="w-3.5 h-3.5 text-purple-600" />,
-      color: "text-purple-700 bg-purple-50 border-purple-200",
-      badgeColor: "bg-purple-600",
+      label: "Placement Officer (TPO)",
+      icon: <Shield className="w-3.5 h-3.5 text-blue-600" />,
+      color: "text-blue-700 bg-blue-50 border-blue-200",
+      badgeColor: "bg-blue-600",
     },
     MENTOR: {
-      label: "Faculty Mentor",
-      icon: <Users className="w-3.5 h-3.5 text-amber-600" />,
-      color: "text-amber-700 bg-amber-50 border-amber-200",
-      badgeColor: "bg-amber-600",
+      label: "Placement Officer (TPO)",
+      icon: <Shield className="w-3.5 h-3.5 text-blue-600" />,
+      color: "text-blue-700 bg-blue-50 border-blue-200",
+      badgeColor: "bg-blue-600",
     },
   };
 
@@ -149,39 +147,7 @@ export const Navbar: React.FC = () => {
               </>
             )}
 
-            {currentRole === "RECRUITER" && (
-              <>
-                <Link
-                  href="/dashboard/recruiter"
-                  className="hover:text-campus-primary transition-colors text-campus-primary font-semibold"
-                >
-                  Job Openings
-                </Link>
-                <Link
-                  href="/matching"
-                  className="hover:text-campus-primary transition-colors"
-                >
-                  Ranked Candidates
-                </Link>
-              </>
-            )}
 
-            {currentRole === "MENTOR" && (
-              <>
-                <Link
-                  href="/dashboard/mentor"
-                  className="hover:text-campus-primary transition-colors text-campus-primary font-semibold"
-                >
-                  At-Risk Students
-                </Link>
-                <Link
-                  href="/analytics"
-                  className="hover:text-campus-primary transition-colors"
-                >
-                  Department Conversion
-                </Link>
-              </>
-            )}
 
             <Link
               href="/design-system"
@@ -306,15 +272,15 @@ export const Navbar: React.FC = () => {
             <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-campus-border py-2 z-50">
               <div className="px-3.5 py-2 border-b border-slate-100">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-campus-text-secondary">
-                  Switch Persona (Quick Demo)
+                  Switch Dashboard
                 </div>
                 <div className="text-[11px] text-slate-500 mt-0.5">
-                  Simulate any of the 4 PRD stakeholder views
+                  Choose between Student and Placement Officer
                 </div>
               </div>
 
               <div className="p-1.5 space-y-1">
-                {(Object.keys(PRESET_PERSONAS) as UserRole[]).map((r) => {
+                {ACTIVE_ROLES.map((r) => {
                   const p = PRESET_PERSONAS[r];
                   const m = roleMeta[r];
                   const isCurrent = user?.role === r;

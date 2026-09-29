@@ -36,10 +36,8 @@ export default function LoginPage() {
 
   const handleQuickPersona = (role: UserRole) => {
     login(role);
-    if (role === "PLACEMENT_OFFICER") router.push("/dashboard/tpo");
-    else if (role === "STUDENT") router.push("/dashboard/student");
-    else if (role === "RECRUITER") router.push("/dashboard/recruiter");
-    else if (role === "MENTOR") router.push("/dashboard/mentor");
+    if (role === "STUDENT") router.push("/dashboard/student");
+    else router.push("/dashboard/tpo");
   };
 
   const personaCards = [
@@ -48,36 +46,18 @@ export default function LoginPage() {
       title: "Placement Officer (TPO)",
       name: "Dr. Rajesh Sharma",
       icon: <Shield className="w-5 h-5 text-blue-600" />,
-      desc: "Full placement command dashboard, drive conflict resolution, and season metrics.",
-      badge: "Administrative Authority",
+      desc: "Full placement command dashboard, drive management, conflict resolution, and student tracking.",
+      badge: "College Administrator",
       accent: "hover:border-blue-300",
     },
     {
       role: "STUDENT" as UserRole,
       title: "Student Candidate",
-      name: "Aarav Patel (CS '26)",
+      name: "Aarav Patel",
       icon: <GraduationCap className="w-5 h-5 text-emerald-600" />,
-      desc: "Personal readiness ring (0-100), AI skill-gap diagnostics, and active job drives.",
-      badge: "Employability Profiling",
+      desc: "Personal readiness ring (0-100), AI skill-gap diagnostics, and active placement drives.",
+      badge: "Student Portal",
       accent: "hover:border-emerald-300",
-    },
-    {
-      role: "RECRUITER" as UserRole,
-      title: "Recruiting Lead",
-      name: "Priya Sen (Microsoft IDC)",
-      icon: <Briefcase className="w-5 h-5 text-purple-600" />,
-      desc: "Instant JD requirements extraction, pre-screened eligible pools, and candidate scoring.",
-      badge: "Hiring Pipeline",
-      accent: "hover:border-purple-300",
-    },
-    {
-      role: "MENTOR" as UserRole,
-      title: "Faculty Mentor",
-      name: "Prof. Anita Desai",
-      icon: <Users className="w-5 h-5 text-amber-600" />,
-      desc: "At-risk student escalation list (top 20% cohort) and branch-wise placement tracking.",
-      badge: "Student Support",
-      accent: "hover:border-amber-300",
     },
   ];
 

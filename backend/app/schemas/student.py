@@ -21,22 +21,35 @@ class StudentBase(BaseModel):
     mock_interview_score: float = 0.0
     communication_score: float = 0.0
     technical_score: float = 0.0
+    resume_url: Optional[str] = "Placement_Resume.pdf"
+    primary_domain: Optional[str] = "Full Stack Development"
+    profile_completed_pct: Optional[int] = 95
+    is_verified: Optional[bool] = True
 
 class StudentCreate(StudentBase):
     pass
 
 class StudentUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    branch: Optional[str] = None
     cgpa: Optional[float] = None
+    tenth_percentage: Optional[float] = None
+    twelfth_percentage: Optional[float] = None
     active_backlogs: Optional[int] = None
+    history_of_backlogs: Optional[int] = None
     skills: Optional[List[str]] = None
     certifications: Optional[List[str]] = None
     projects: Optional[List[Dict[str, Any]]] = None
+    primary_domain: Optional[str] = None
+    resume_url: Optional[str] = None
     aptitude_score: Optional[float] = None
     mock_interview_score: Optional[float] = None
     communication_score: Optional[float] = None
     technical_score: Optional[float] = None
     status: Optional[StudentStatus] = None
+    profile_completed_pct: Optional[int] = None
 
 class StudentResponse(StudentBase):
     id: int

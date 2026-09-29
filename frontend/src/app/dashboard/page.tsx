@@ -15,20 +15,13 @@ export default function DashboardIndex() {
     }
 
     switch (user.role) {
-      case "PLACEMENT_OFFICER":
-        router.push("/dashboard/tpo");
-        break;
       case "STUDENT":
         router.push("/dashboard/student");
         break;
-      case "RECRUITER":
-        router.push("/dashboard/recruiter");
-        break;
-      case "MENTOR":
-        router.push("/dashboard/mentor");
-        break;
+      case "PLACEMENT_OFFICER":
       default:
         router.push("/dashboard/tpo");
+        break;
     }
   }, [user, router]);
 

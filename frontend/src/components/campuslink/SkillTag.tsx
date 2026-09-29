@@ -6,16 +6,19 @@ export type SkillMatchStatus = "matched" | "partial" | "missing";
 interface SkillTagProps {
   name: string;
   status?: SkillMatchStatus;
+  state?: SkillMatchStatus;
   showIcon?: boolean;
   className?: string;
 }
 
 export const SkillTag: React.FC<SkillTagProps> = ({
   name,
-  status = "matched",
+  status,
+  state,
   showIcon = true,
   className = "",
 }) => {
+  const currentStatus = status || state || "matched";
   const styles = {
     matched: {
       container: "bg-emerald-50 text-emerald-800 border-emerald-200",
@@ -32,7 +35,7 @@ export const SkillTag: React.FC<SkillTagProps> = ({
       icon: <X className="w-3.5 h-3.5 text-red-600" />,
       label: "Missing",
     },
-  }[status];
+  }[currentStatus];
 
   return (
     <span
