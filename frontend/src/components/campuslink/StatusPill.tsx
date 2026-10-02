@@ -50,10 +50,10 @@ export const StatusPill: React.FC<StatusPillProps> = ({
       dotColor: "bg-blue-500",
     },
     primary: {
-      bg: "bg-slate-100",
-      text: "text-campus-primary",
-      border: "border-slate-200",
-      dotColor: "bg-campus-primary",
+      bg: "bg-indigo-50",
+      text: "text-indigo-700",
+      border: "border-indigo-200",
+      dotColor: "bg-indigo-600",
     },
     neutral: {
       bg: "bg-slate-50",

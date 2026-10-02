@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import {
   ReadinessRing,
@@ -9,6 +10,8 @@ import {
   StatusPill,
   Button,
   KPICard,
+  PlacementCalendar,
+  CompanyLogo,
 } from "@/components/campuslink";
 import {
   GraduationCap,
@@ -42,7 +45,27 @@ import {
   Download,
   Edit3,
   Save,
+  Flame,
+  Star,
+  Target,
+  MessageSquare,
+  Bot,
+  Search,
+  MapPin,
 } from "lucide-react";
+import { StudentAIChatBot } from "@/components/chat/StudentAIChatBot";
+
+
+export interface CertificationItem {
+  name: string;
+  issuer?: string;
+  issue_date?: string;
+  credential_id?: string;
+  file_name?: string;
+  file_url?: string;
+  file_size?: number;
+  uploaded_at?: string;
+}
 
 interface StudentProfile {
   id: number;
@@ -59,7 +82,7 @@ interface StudentProfile {
   history_of_backlogs: number;
   skills: string[];
   primary_domain: string;
-  certifications: string[];
+  certifications: (string | CertificationItem)[];
   projects: { title: string; tech: string; github?: string; live?: string; summary?: string }[];
   resume_url: string;
   readiness_score: number;
@@ -88,6 +111,8 @@ interface DriveItem {
   slot: string;
   venue: string;
   status: string;
+  required_skills?: string[];
+  company_rating?: number;
 }
 
 interface ApplicationItem {
@@ -125,9 +150,26 @@ interface OfferItem {
   joining_date?: string;
 }
 
-export default function StudentDashboardPage() {
+function StudentDashboardContent() {
   const { user, updateUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<"overview" | "profile" | "drives" | "applications" | "offers">("overview");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabFromQuery = searchParams.get("tab") as any;
+
+  const [activeTabState, setActiveTabState] = useState<"overview" | "calendar" | "profile" | "drives" | "applications" | "offers" | "ai-mentor">(
+    tabFromQuery && ["overview", "calendar", "profile", "drives", "applications", "offers", "ai-mentor"].includes(tabFromQuery)
+      ? tabFromQuery
+      : "overview"
+  );
+
+  const activeTab = (tabFromQuery && ["overview", "calendar", "profile", "drives", "applications", "offers", "ai-mentor"].includes(tabFromQuery))
+    ? tabFromQuery
+    : activeTabState;
+
+  const setActiveTab = (newTab: "overview" | "calendar" | "profile" | "drives" | "applications" | "offers" | "ai-mentor") => {
+    setActiveTabState(newTab);
+    router.replace(`/dashboard/student?tab=${newTab}`, { scroll: false });
+  };
   
   // Profile State
   const [profile, setProfile] = useState<StudentProfile>({
@@ -186,6 +228,11 @@ export default function StudentDashboardPage() {
   const [editBacklogs, setEditBacklogs] = useState(profile.active_backlogs.toString());
   const [newSkillInput, setNewSkillInput] = useState("");
   const [newCertInput, setNewCertInput] = useState("");
+  const [newCertIssuer, setNewCertIssuer] = useState("");
+  const [newCertFile, setNewCertFile] = useState<File | null>(null);
+  const [isUploadingCert, setIsUploadingCert] = useState(false);
+  const [certUploadError, setCertUploadError] = useState<string | null>(null);
+  const [previewCertModal, setPreviewCertModal] = useState<{ name: string; url: string; file_name?: string } | null>(null);
   const [resumeFileName, setResumeFileName] = useState(profile.resume_url);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [resumeVariant, setResumeVariant] = useState<"DEFAULT" | "TAILORED">("DEFAULT");
@@ -347,22 +394,151 @@ export default function StudentDashboardPage() {
     }));
   };
 
-  // Certification Handlers
-  const handleAddCert = () => {
-    if (!newCertInput.trim()) return;
-    if (!profile.certifications.includes(newCertInput.trim())) {
-      setProfile((prev) => ({
-        ...prev,
-        certifications: [...prev.certifications, newCertInput.trim()],
-      }));
-    }
-    setNewCertInput("");
+  // Certification Helpers & Handlers
+  const getCertName = (cert: string | CertificationItem): string => {
+    return typeof cert === "string" ? cert : cert.name;
   };
 
-  const handleRemoveCert = (certToRemove: string) => {
+  const getCertIssuer = (cert: string | CertificationItem): string | undefined => {
+    return typeof cert === "string" ? undefined : cert.issuer;
+  };
+
+  const getCertFile = (cert: string | CertificationItem): { name?: string; url?: string; size?: number } | null => {
+    if (typeof cert === "string") return null;
+    if (cert.file_name || cert.file_url) {
+      return { name: cert.file_name, url: cert.file_url, size: cert.file_size };
+    }
+    return null;
+  };
+
+  const handleAddCert = async () => {
+    const certName = newCertInput.trim();
+    if (!certName) {
+      setCertUploadError("Please provide a certification title (e.g. AWS Solutions Architect).");
+      return;
+    }
+    setCertUploadError(null);
+    setIsUploadingCert(true);
+
+    try {
+      let uploadedUrl: string | undefined = undefined;
+      let originalFileName: string | undefined = undefined;
+      let fileSize: number | undefined = undefined;
+
+      if (newCertFile) {
+        originalFileName = newCertFile.name;
+        fileSize = newCertFile.size;
+
+        try {
+          const formData = new FormData();
+          formData.append("file", newCertFile);
+          const uploadRes = await fetch(`http://127.0.0.1:8000/api/v1/students/${profile.id}/certificate/upload`, {
+            method: "POST",
+            body: formData,
+          });
+
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            uploadedUrl = uploadData.file_url;
+          } else {
+            uploadedUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (e) => resolve(e.target?.result as string);
+              reader.readAsDataURL(newCertFile);
+            });
+          }
+        } catch {
+          uploadedUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(newCertFile);
+          });
+        }
+      }
+
+      const newCertObj: CertificationItem = {
+        name: certName,
+        issuer: newCertIssuer.trim() || undefined,
+        file_name: originalFileName,
+        file_url: uploadedUrl,
+        file_size: fileSize,
+        uploaded_at: new Date().toISOString(),
+      };
+
+      setProfile((prev) => {
+        const filtered = prev.certifications.filter(
+          (c) => getCertName(c).toLowerCase() !== certName.toLowerCase()
+        );
+        return {
+          ...prev,
+          certifications: [...filtered, newCertObj],
+        };
+      });
+
+      setNewCertInput("");
+      setNewCertIssuer("");
+      setNewCertFile(null);
+    } catch (err: any) {
+      setCertUploadError(err?.message || "Failed to process certificate.");
+    } finally {
+      setIsUploadingCert(false);
+    }
+  };
+
+  const handleUploadProofForCert = async (certItem: string | CertificationItem, file: File) => {
+    const certName = getCertName(certItem);
+    try {
+      let uploadedUrl: string | undefined = undefined;
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(`http://127.0.0.1:8000/api/v1/students/${profile.id}/certificate/upload`, {
+          method: "POST",
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          uploadedUrl = data.file_url;
+        } else {
+          uploadedUrl = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.readAsDataURL(file);
+          });
+        }
+      } catch {
+        uploadedUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      const updatedObj: CertificationItem = {
+        name: certName,
+        issuer: getCertIssuer(certItem),
+        file_name: file.name,
+        file_url: uploadedUrl,
+        file_size: file.size,
+        uploaded_at: new Date().toISOString(),
+      };
+
+      setProfile((prev) => ({
+        ...prev,
+        certifications: prev.certifications.map((c) =>
+          getCertName(c).toLowerCase() === certName.toLowerCase() ? updatedObj : c
+        ),
+      }));
+    } catch (err) {
+      console.warn("Error attaching certificate:", err);
+    }
+  };
+
+  const handleRemoveCert = (certToRemove: string | CertificationItem) => {
+    const targetName = getCertName(certToRemove);
     setProfile((prev) => ({
       ...prev,
-      certifications: prev.certifications.filter((c) => c !== certToRemove),
+      certifications: prev.certifications.filter((c) => getCertName(c) !== targetName),
     }));
   };
 
@@ -387,6 +563,13 @@ export default function StudentDashboardPage() {
     setProjGithub("");
     setProjLive("");
     setProjSummary("");
+  };
+
+  const handleRemoveProject = (indexToRemove: number) => {
+    setProfile((prev) => ({
+      ...prev,
+      projects: prev.projects.filter((_, idx) => idx !== indexToRemove),
+    }));
   };
 
   // Direct Resume Save / Upgrade Handler
@@ -552,6 +735,40 @@ export default function StudentDashboardPage() {
     }
   };
 
+  // Direct Apply to Drive (used by Placement Calendar and instant action triggers)
+  const handleDirectApply = async (driveId: number): Promise<{ success: boolean; message: string }> => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/applications/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          drive_id: driveId,
+          student_id: profile.id,
+          resume_url: resumeFileName,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return {
+          success: false,
+          message: data.detail || "Eligibility check failed for this recruitment drive.",
+        };
+      }
+
+      await loadAllData();
+      return {
+        success: true,
+        message: data.message || "Application successfully confirmed and registered!",
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: "Failed to connect to application server. Please try again.",
+      };
+    }
+  };
+
   // Filter Drives
   const filteredDrives = drives.filter((d) => {
     const matchesSearch =
@@ -616,159 +833,282 @@ export default function StudentDashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-campus-bg py-8 px-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-campus-border pb-6">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-campus-text-secondary uppercase tracking-wider mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Student Placement Portal</span>
-              <span>/</span>
-              <span>CampToCorp Unified Career Workspace</span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-campus-text-primary">
-              Welcome back, {profile.full_name}
-            </h1>
-            <p className="text-sm text-campus-text-secondary mt-1">
-              B.Tech {profile.branch} &bull; Roll: {profile.roll_number} &bull; CGPA: {profile.cgpa.toFixed(2)}/10.0 &bull; Batch {profile.batch_year}
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50/70 py-8 px-4 sm:px-6 relative overflow-hidden">
+      {/* Background Ambient Glows */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse-subtle" />
+        <div className="absolute top-72 right-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse-subtle" style={{ animationDelay: "1.5s" }} />
+      </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              Verified by Placement Cell
-            </span>
-            <div className="flex items-center gap-2 text-xs bg-white border border-campus-border px-3 py-1.5 rounded-full shadow-xs">
-              <span className="font-semibold text-slate-600">Profile Completion:</span>
-              <span className="font-extrabold text-campus-primary">{completenessPct}%</span>
+      <div className="max-w-7xl mx-auto space-y-6 relative z-10">
+        {/* Top Student Identity & Command Header */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 sm:p-7 shadow-xs relative overflow-hidden">
+          {/* Top Gradient Accent Line */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-500" />
+
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            {/* Left: Avatar & Bio */}
+            <div className="flex items-start sm:items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 text-white font-black text-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25 shrink-0">
+                {profile.full_name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)}
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/80 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    Active Candidate • Batch {profile.batch_year}
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    Verified by TPO
+                  </span>
+                </div>
+
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                  {profile.full_name}
+                </h1>
+
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1 font-medium">
+                  <span className="text-slate-800 font-bold">B.Tech {profile.branch}</span>
+                  <span>•</span>
+                  <span>Roll: <strong>{profile.roll_number}</strong></span>
+                  <span>•</span>
+                  <span className="text-indigo-600 font-bold">CGPA: {profile.cgpa.toFixed(2)}/10.0</span>
+                  <span>•</span>
+                  <span className="text-emerald-700 font-semibold">0 Active Backlogs</span>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={() => setActiveTab("profile")}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-campus-primary text-white hover:bg-campus-primary/90 shadow-xs transition-all cursor-pointer"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              Edit Profile & Resume
-            </button>
+
+            {/* Right: Profile Completeness Meter & Quick Action */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-4 border-t lg:border-t-0 pt-4 lg:pt-0 border-slate-100">
+              <div className="bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 min-w-[200px] flex-1 sm:flex-initial">
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="font-bold text-slate-700">Profile Readiness</span>
+                  <span className="font-black text-indigo-600">{completenessPct}%</span>
+                </div>
+                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${completenessPct}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500 mt-1 block">
+                  {completenessPct >= 90 ? "✨ Profile 100% Drive-Ready" : "Complete projects to reach 100%"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("ai-mentor")}
+                  className="px-3.5 py-2.5 rounded-xl border border-indigo-200/80 bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 transition-colors shadow-2xs flex items-center gap-2 font-bold text-xs cursor-pointer"
+                  title="Launch AI Career Advisor"
+                >
+                  <Sparkles className="w-4 h-4 text-indigo-600" />
+                  <span className="hidden sm:inline">AI Career Advisor</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-campus-border pb-px overflow-x-auto text-xs font-semibold">
+        {/* Segmented Modern Tab Bar */}
+        <div className="bg-slate-200/60 p-1.5 rounded-2xl border border-slate-200/90 flex items-center gap-1 overflow-x-auto shadow-2xs">
           {[
-            { id: "overview", label: "Overview & Readiness Ring", icon: <TrendingUp className="w-4 h-4" /> },
+            { id: "overview", label: "Readiness Radar", icon: <TrendingUp className="w-4 h-4" /> },
+            {
+              id: "calendar",
+              label: `Placement Calendar (${drives.length})`,
+              icon: <Calendar className="w-4 h-4" />,
+              badge: drives.some((d) => {
+                const parts = d.drive_date?.split("-").map(Number);
+                if (!parts || parts.length !== 3) return false;
+                const dDate = new Date(parts[0], parts[1] - 1, parts[2]);
+                const now = new Date();
+                const ref = now.getFullYear() < 2026 ? new Date(2026, 8, 30) : now;
+                const diff = Math.ceil((dDate.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24));
+                return diff >= 10 && diff <= 15;
+              }) ? "10–15d Alert!" : undefined,
+            },
             { id: "profile", label: "Profile & Resume Builder", icon: <BookOpen className="w-4 h-4" /> },
             { id: "drives", label: `Drive Discovery (${drives.length})`, icon: <Building className="w-4 h-4" /> },
-            { id: "applications", label: `Live Round Tracker (${applications.length})`, icon: <Clock className="w-4 h-4" /> },
-            { id: "offers", label: `Offer & Acceptance (${offers.length})`, icon: <Award className="w-4 h-4" /> },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl transition-all border-b-2 -mb-px whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-campus-primary text-campus-primary bg-white shadow-xs font-bold"
-                  : "border-transparent text-campus-text-secondary hover:text-campus-text-primary hover:bg-slate-50"
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+            { id: "applications", label: `Application Tracker (${applications.length})`, icon: <Clock className="w-4 h-4" /> },
+            { id: "offers", label: `Offer Desk (${offers.length})`, icon: <Award className="w-4 h-4" /> },
+            {
+              id: "ai-mentor",
+              label: "AI Mentor",
+              icon: <Sparkles className="w-4 h-4 text-indigo-500" />,
+              badge: "AI Powered",
+            },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`group relative flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 hover:-translate-y-0.5 whitespace-nowrap text-xs font-bold cursor-pointer ${
+                  isActive
+                    ? "bg-white text-indigo-700 shadow-xs border border-indigo-200/90"
+                    : "text-slate-600 hover:text-indigo-600 hover:bg-white/70 hover:shadow-2xs border border-transparent"
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                    tab.id === "calendar"
+                      ? "bg-amber-500 text-white animate-pulse"
+                      : "bg-indigo-600 text-white"
+                  }`}>
+                    {tab.badge}
+                  </span>
+                )}
+                <span
+                  className={`absolute bottom-0.5 left-3 right-3 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                    isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                  }`}
+                />
+              </button>
+            );
+          })}
         </div>
 
         {/* ========================================================================= */}
         {/* TAB 1: OVERVIEW & READINESS RING */}
         {/* ========================================================================= */}
         {activeTab === "overview" && (
-          <div className="space-y-8 animate-fade-in">
+          <div className="space-y-6 animate-fade-in" id="readiness-overview-section">
+            {/* AI Co-Pilot Interactive Highlight Banner */}
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 text-white shadow-xl border border-indigo-800/40 flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+              <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="flex items-start gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-cyan-400 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/30">
+                  <Sparkles className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-extrabold text-base text-white">CampusLink AI Placement Mentor is Active</h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
+                      Live Grounded in Placement DB
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Personalized insights based on your CGPA ({profile.cgpa.toFixed(2)}) and verified skills. 
+                    Practice mock interviews, ask about upcoming company drive cutoffs, or get immediate ATS resume tips.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0 relative z-10">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("ai-mentor")}
+                  className="btn-gradient text-xs py-2.5 px-5 shadow-lg shadow-indigo-500/25 flex items-center gap-2"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Launch AI Mentor Console</span>
+                </button>
+              </div>
+            </div>
+
             {/* Visual Readiness Ring & Factor Meters */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Circular Readiness Ring */}
-              <div className="card-squarespace p-6 flex flex-col items-center justify-center text-center space-y-4">
+              <div className="rounded-3xl border border-slate-200/90 bg-white p-7 shadow-xs relative overflow-hidden flex flex-col items-center justify-center text-center space-y-4 hover:shadow-md transition-shadow">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-purple-500 via-indigo-600 to-cyan-500" />
+
                 <div className="space-y-1">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-campus-text-secondary">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     Composite Employability Index
                   </span>
-                  <h2 className="text-lg font-bold text-campus-text-primary">
-                    Readiness Score
+                  <h2 className="text-xl font-black text-slate-900">
+                    Employability Score
                   </h2>
                 </div>
 
-                <ReadinessRing score={profile.readiness_score} size={175} strokeWidth={12} showLabel={true} />
+                <div className="relative py-2 flex items-center justify-center">
+                  <div className="absolute w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                  <ReadinessRing score={profile.readiness_score} size={175} strokeWidth={12} showLabel={true} />
+                </div>
 
-                <div className="space-y-1 max-w-xs">
-                  <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block">
-                    {profile.readiness_level.replace("_", " ")}
+                <div className="space-y-2 max-w-xs">
+                  <div className="text-xs font-black text-indigo-800 bg-gradient-to-r from-purple-50 to-indigo-50 border border-indigo-200 px-3.5 py-1 rounded-full inline-block shadow-2xs">
+                    ✨ {profile.readiness_level.replace("_", " ")}
                   </div>
-                  <p className="text-[11px] text-campus-text-secondary">
-                    Your readiness score qualifies your profile for on-campus Super Dream (&gt;20 LPA) & Core recruitment rounds.
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Your readiness index qualifies your profile for <strong className="text-slate-800">Super Dream (&gt;20 LPA)</strong> and high-tier engineering recruitment drives.
                   </p>
                 </div>
               </div>
 
               {/* 4 Factor Meters */}
-              <div className="card-squarespace p-6 space-y-4 lg:col-span-2">
+              <div className="rounded-3xl border border-slate-200/90 bg-white p-7 shadow-xs relative overflow-hidden space-y-5 lg:col-span-2 hover:shadow-md transition-shadow">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 to-cyan-500" />
+
                 <div>
-                  <h3 className="text-base font-bold text-campus-text-primary">
+                  <h3 className="text-base font-black text-slate-900">
                     Employability Factor Breakdown (Weightage Formula)
                   </h3>
-                  <p className="text-xs text-campus-text-secondary mt-0.5">
-                    Evaluated against university criteria: 50% Verified Skills, 20% Academic CGPA, 15% Assessments, 15% Projects.
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Evaluated against university benchmarks: 50% Verified Skills, 20% Academic CGPA, 15% Assessments, 15% Projects.
                   </p>
                 </div>
 
-                <div className="space-y-3.5 pt-1">
+                <div className="space-y-4 pt-1">
                   <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-campus-text-primary">Verified Skills Mastery (50% Weight)</span>
-                      <span className="font-bold text-campus-primary">94 / 100</span>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-bold text-slate-800">Verified Skills Mastery (50% Weight)</span>
+                      <span className="font-black text-indigo-600">94 / 100</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="bg-campus-primary h-2 rounded-full" style={{ width: "94%" }} />
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-600 to-cyan-500 h-full rounded-full transition-all duration-700" style={{ width: "94%" }} />
                     </div>
-                    <span className="text-[10px] text-campus-text-secondary mt-0.5 block">
-                      Mastery in {profile.skills.slice(0, 4).join(", ")}.
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      High competence verified in: {profile.skills.slice(0, 4).join(", ")}.
                     </span>
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-campus-text-primary">Academic CGPA Standing (20% Weight)</span>
-                      <span className="font-bold text-campus-primary">{Math.round(profile.cgpa * 10)} / 100</span>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-bold text-slate-800">Academic CGPA Standing (20% Weight)</span>
+                      <span className="font-black text-emerald-600">{Math.round(profile.cgpa * 10)} / 100</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="bg-campus-primary h-2 rounded-full" style={{ width: `${Math.round(profile.cgpa * 10)}%` }} />
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-700" style={{ width: `${Math.round(profile.cgpa * 10)}%` }} />
                     </div>
-                    <span className="text-[10px] text-campus-text-secondary mt-0.5 block">
-                      CGPA {profile.cgpa.toFixed(2)} with {profile.active_backlogs} active backlogs.
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      CGPA {profile.cgpa.toFixed(2)} with {profile.active_backlogs} active backlogs (Clean Record).
                     </span>
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-campus-text-primary">Assessment & Coding Diagnostic (15% Weight)</span>
-                      <span className="font-bold text-campus-primary">85 / 100</span>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-bold text-slate-800">Assessment & Coding Diagnostic (15% Weight)</span>
+                      <span className="font-black text-violet-600">85 / 100</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="bg-campus-primary h-2 rounded-full" style={{ width: "85%" }} />
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-violet-600 to-purple-500 h-full rounded-full transition-all duration-700" style={{ width: "85%" }} />
                     </div>
-                    <span className="text-[10px] text-campus-text-secondary mt-0.5 block">
-                      Cleared internal algorithmic screens & problem-solving benchmarks.
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Cleared internal algorithmic benchmarks & problem-solving screens.
                     </span>
                   </div>
 
                   <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-semibold text-campus-text-primary">Project Portfolio & Production Code (15% Weight)</span>
-                      <span className="font-bold text-campus-primary">90 / 100</span>
+                    <div className="flex justify-between text-xs mb-1.5">
+                      <span className="font-bold text-slate-800">Project Portfolio & Production Code (15% Weight)</span>
+                      <span className="font-black text-amber-600">90 / 100</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                      <div className="bg-campus-primary h-2 rounded-full" style={{ width: "90%" }} />
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div className="bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-700" style={{ width: "90%" }} />
                     </div>
-                    <span className="text-[10px] text-campus-text-secondary mt-0.5 block">
-                      {profile.projects.length} verified projects with live deployment links.
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      {profile.projects.length} verified projects with live deployment repositories.
                     </span>
                   </div>
                 </div>
@@ -776,79 +1116,119 @@ export default function StudentDashboardPage() {
             </div>
 
             {/* Quick Action Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div
+                onClick={() => setActiveTab("calendar")}
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 hover:shadow-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group shadow-xs hover:border-indigo-300"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500" />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">Placement Radar</div>
+                    <div className="text-[10px] font-bold text-indigo-600">10–15d Prep Matrix</div>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Visiting companies, ratings, and targeted skill gap roadmaps.
+                </p>
+              </div>
+
               <div
                 onClick={() => setActiveTab("profile")}
-                className="card-squarespace p-5 border border-campus-border hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5 group"
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 hover:shadow-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group shadow-xs"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 group-hover:bg-campus-primary group-hover:text-white transition-colors">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 to-cyan-500" />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
                     <BookOpen className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-campus-text-primary">Profile & Resume</div>
-                    <div className="text-[11px] text-campus-text-secondary">{completenessPct}% Profile Completeness</div>
+                    <div className="text-sm font-bold text-slate-900">Profile & Resume</div>
+                    <div className="text-[10px] font-bold text-indigo-600">{completenessPct}% Profile Completeness</div>
                   </div>
                 </div>
-                <p className="text-xs text-campus-text-secondary">
-                  Upgrade CGPA, manage verified skills, and tailor your ATS placement resume.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Upgrade CGPA, verified skills, and tailor your ATS resume.
                 </p>
               </div>
 
               <div
                 onClick={() => setActiveTab("drives")}
-                className="card-squarespace p-5 border border-campus-border hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5"
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 hover:shadow-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group shadow-xs"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-xl bg-blue-50 text-campus-primary">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-600" />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 group-hover:scale-110 transition-transform">
                     <Building className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-campus-text-primary">Discover Drives</div>
-                    <div className="text-[11px] text-campus-text-secondary">{drives.length} Active Opportunities</div>
+                    <div className="text-sm font-bold text-slate-900">Discover Drives</div>
+                    <div className="text-[10px] font-bold text-blue-600">{drives.length} Active Drives</div>
                   </div>
                 </div>
-                <p className="text-xs text-campus-text-secondary">
-                  Check deterministic eligibility and apply in 1-click with pre-attached resume.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Deterministic eligibility and 1-click verified application.
                 </p>
               </div>
 
               <div
                 onClick={() => setActiveTab("applications")}
-                className="card-squarespace p-5 border border-campus-border hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5"
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 hover:shadow-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group shadow-xs"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 to-violet-600" />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 group-hover:scale-110 transition-transform">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-campus-text-primary">Track Applications</div>
-                    <div className="text-[11px] text-campus-text-secondary">{applications.length} Drives in Pipeline</div>
+                    <div className="text-sm font-bold text-slate-900">Applications</div>
+                    <div className="text-[10px] font-bold text-purple-600">{applications.length} In Pipeline</div>
                   </div>
                 </div>
-                <p className="text-xs text-campus-text-secondary">
-                  Monitor round-by-round advancement, test timings, and TPO venue instructions.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Round-by-round advancement, test times, and venue guidance.
                 </p>
               </div>
 
               <div
                 onClick={() => setActiveTab("offers")}
-                className="card-squarespace p-5 border border-campus-border hover:shadow-md cursor-pointer transition-all hover:-translate-y-0.5"
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 hover:shadow-lg cursor-pointer transition-all duration-300 hover:-translate-y-1 relative overflow-hidden group shadow-xs"
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-600" />
+                <div className="flex items-center gap-3 mb-2.5">
+                  <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 group-hover:scale-110 transition-transform">
                     <Award className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-sm font-bold text-campus-text-primary">Offer Desk</div>
-                    <div className="text-[11px] text-campus-text-secondary">{offers.length} Received Offers</div>
+                    <div className="text-sm font-bold text-slate-900">Offer Desk</div>
+                    <div className="text-[10px] font-bold text-emerald-600">{offers.length} Released Offers</div>
                   </div>
                 </div>
-                <p className="text-xs text-campus-text-secondary">
-                  Review CTC breakdown, accept/decline offers, and upload signed acceptance letters.
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  CTC breakdown, accept/decline offers, and upload agreements.
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB: PLACEMENT CALENDAR & 10-15 DAY ADVANCE PREPARATION */}
+        {/* ========================================================================= */}
+        {activeTab === "calendar" && (
+          <div className="space-y-6 animate-fade-in">
+            <PlacementCalendar
+              drives={drives}
+              studentSkills={profile.skills || []}
+              studentCgpa={profile.cgpa || 8.8}
+              studentBranch={profile.branch || "CSE"}
+              studentBacklogs={profile.active_backlogs || 0}
+              appliedDriveIds={applications.map((a) => a.drive_id)}
+              onApply={handleDirectApply}
+            />
           </div>
         )}
 
@@ -893,14 +1273,6 @@ export default function StudentDashboardPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-extrabold text-base text-campus-primary">{completenessPct}% Completed</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    icon={<Edit3 className="w-3.5 h-3.5" />}
-                    onClick={() => setIsEditingProfile(!isEditingProfile)}
-                  >
-                    {isEditingProfile ? "Exit Edit Mode" : "Upgrade Academic Details"}
-                  </Button>
                 </div>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
@@ -976,29 +1348,14 @@ export default function StudentDashboardPage() {
                         <label className="block font-semibold text-slate-700 mb-1">Official College Email</label>
                         <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-medium flex items-center justify-between">
                           <span className="truncate">{profile.email}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditEmail(profile.email);
-                              setIsEditingProfile(true);
-                            }}
-                            className="text-[10px] text-campus-primary font-bold hover:underline shrink-0 ml-2"
-                          >
-                            Edit
-                          </button>
+                          <span className="text-[10px] text-slate-500 font-medium">Verified Email</span>
                         </div>
                       </div>
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
                         <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-medium flex items-center justify-between">
                           <span>{profile.phone}</span>
-                          <button
-                            type="button"
-                            onClick={() => setIsEditingProfile(true)}
-                            className="text-[10px] text-campus-primary font-bold hover:underline"
-                          >
-                            Edit
-                          </button>
+                          <span className="text-[10px] text-slate-500 font-medium">Primary Contact</span>
                         </div>
                       </div>
                     </div>
@@ -1129,136 +1486,316 @@ export default function StudentDashboardPage() {
                           className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-bold"
                         />
                       </div>
-                      <div className="flex items-end">
-                        <div className="flex items-center gap-2 w-full pt-1">
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            icon={<Save className="w-3.5 h-3.5" />}
-                            onClick={handleSaveProfile}
-                            disabled={isSavingProfile}
-                            className="flex-1"
-                          >
-                            {isSavingProfile ? "Saving..." : "Save Academic Upgrades"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            type="button"
-                            onClick={() => {
-                              setEditFullName(profile.full_name);
-                              setEditEmail(profile.email);
-                              setEditPhone(profile.phone);
-                              setEditBranch(profile.branch);
-                              setEditCgpa(profile.cgpa.toString());
-                              setEditTenth(profile.tenth_percentage.toString());
-                              setEditTwelfth(profile.twelfth_percentage.toString());
-                              setEditBacklogs(profile.active_backlogs.toString());
-                              setIsEditingProfile(false);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
 
                 {/* Primary Domain Portfolio */}
                 <div className="pt-4 border-t border-campus-border space-y-4">
-                  <h4 className="text-sm font-bold text-campus-text-primary">Skills & Domain Portfolio</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-campus-text-primary">Skills & Domain Portfolio</h4>
+                    {!isEditingProfile ? (
+                      <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Locked &bull; Click &quot;Upgrade Academic Details&quot; to edit
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Editing Mode Active
+                      </span>
+                    )}
+                  </div>
                   
                   <div className="text-xs">
                     <label className="block font-semibold text-slate-700 mb-1">Primary Career Domain</label>
-                    <select
-                      value={editDomain}
-                      onChange={(e) => setEditDomain(e.target.value)}
-                      className="w-full p-2.5 rounded-lg border border-campus-border bg-white font-medium text-xs"
-                    >
-                      <option value="Full Stack Development">Full Stack Development</option>
-                      <option value="Cloud / DevOps Engineering">Cloud / DevOps Engineering</option>
-                      <option value="Data Science & Machine Learning">Data Science & Machine Learning</option>
-                      <option value="Core Systems & Embedded">Core Systems & Embedded Engineering</option>
-                      <option value="Product & Technology Consulting">Product & Technology Consulting</option>
-                    </select>
+                    {isEditingProfile ? (
+                      <select
+                        value={editDomain}
+                        onChange={(e) => setEditDomain(e.target.value)}
+                        className="w-full p-2.5 rounded-lg border border-campus-border bg-white font-medium text-xs focus:ring-1 focus:ring-campus-primary"
+                      >
+                        <option value="Full Stack Development">Full Stack Development</option>
+                        <option value="Cloud / DevOps Engineering">Cloud / DevOps Engineering</option>
+                        <option value="Data Science & Machine Learning">Data Science & Machine Learning</option>
+                        <option value="Core Systems & Embedded">Core Systems & Embedded Engineering</option>
+                        <option value="Product & Technology Consulting">Product & Technology Consulting</option>
+                      </select>
+                    ) : (
+                      <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-semibold text-xs flex items-center justify-between">
+                        <span>{editDomain || profile.primary_domain}</span>
+                        <span className="text-[10px] text-slate-500 font-normal">Active Specialization</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Technical Skills Tag Manager */}
                   <div className="text-xs space-y-2">
-                    <label className="block font-semibold text-slate-700">Verified Technical Skills (Multi-Select Tags)</label>
-                    <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-campus-border bg-slate-50/50 min-h-[46px]">
-                      {profile.skills.map((skill) => (
-                        <span
-                          key={skill}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-campus-border text-campus-primary shadow-xs"
-                        >
-                          {skill}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSkill(skill)}
-                            className="text-slate-400 hover:text-rose-600 font-bold"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <label className="block font-semibold text-slate-700">Verified Technical Skills (Multi-Select Tags)</label>
+                      <span className="text-[10px] text-slate-400 font-mono">{profile.skills.length} skills listed</span>
                     </div>
-
-                    <div className="flex gap-2 pt-1">
-                      <input
-                        type="text"
-                        placeholder="Add technical skill (e.g. AWS, Redis, GraphQL)..."
-                        value={newSkillInput}
-                        onChange={(e) => setNewSkillInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSkill())}
-                        className="flex-1 p-2 rounded-lg border border-campus-border text-xs"
-                      />
-                      <Button variant="secondary" size="sm" type="button" onClick={handleAddSkill}>
-                        Add Skill
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Certifications Manager */}
-                  <div className="text-xs space-y-2 pt-2">
-                    <label className="block font-semibold text-slate-700">Industry Certifications & Credentials</label>
                     <div className="flex flex-wrap gap-2 p-3 rounded-xl border border-campus-border bg-slate-50/50 min-h-[46px]">
-                      {profile.certifications.length === 0 ? (
-                        <span className="text-slate-400 text-[11px]">No certifications added yet. Add verified credentials below.</span>
+                      {profile.skills.length === 0 ? (
+                        <span className="text-slate-400 text-[11px]">No technical skills listed.</span>
                       ) : (
-                        profile.certifications.map((cert) => (
+                        profile.skills.map((skill) => (
                           <span
-                            key={cert}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-campus-border text-emerald-800 shadow-xs"
+                            key={skill}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-white border border-campus-border text-campus-primary shadow-2xs"
                           >
-                            <Award className="w-3 h-3 text-emerald-600" />
-                            {cert}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveCert(cert)}
-                              className="text-slate-400 hover:text-rose-600 font-bold"
-                            >
-                              ×
-                            </button>
+                            {skill}
+                            {isEditingProfile && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSkill(skill)}
+                                className="text-slate-400 hover:text-rose-600 font-bold cursor-pointer"
+                                title={`Remove ${skill}`}
+                              >
+                                ×
+                              </button>
+                            )}
                           </span>
                         ))
                       )}
                     </div>
 
-                    <div className="flex gap-2 pt-1">
-                      <input
-                        type="text"
-                        placeholder="Add certification (e.g. AWS Solutions Architect, Docker Associate)..."
-                        value={newCertInput}
-                        onChange={(e) => setNewCertInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCert())}
-                        className="flex-1 p-2 rounded-lg border border-campus-border text-xs"
-                      />
-                      <Button variant="secondary" size="sm" type="button" onClick={handleAddCert}>
-                        Add Certification
-                      </Button>
+                    {isEditingProfile && (
+                      <div className="flex gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="Add technical skill (e.g. AWS, Redis, GraphQL)..."
+                          value={newSkillInput}
+                          onChange={(e) => setNewSkillInput(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSkill())}
+                          className="flex-1 p-2 rounded-lg border border-campus-border text-xs bg-white focus:outline-none focus:ring-1 focus:ring-campus-primary"
+                        />
+                        <Button variant="secondary" size="sm" type="button" onClick={handleAddSkill}>
+                          Add Skill
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Certifications Manager */}
+                  <div className="text-xs space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block font-semibold text-slate-800 text-xs">
+                          Industry Certifications & Credentials
+                        </label>
+                        <p className="text-[11px] text-slate-400">
+                          {isEditingProfile
+                            ? "Upload certificate proofs (PDF, PNG, JPG) or credential titles to verify skills."
+                            : "Verified industry credentials and proof documents linked to your profile."}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        {profile.certifications.length} Credentials
+                      </span>
                     </div>
+
+                    {/* Certifications List */}
+                    <div className="space-y-2 p-3 rounded-xl border border-campus-border bg-slate-50/50 min-h-[50px]">
+                      {profile.certifications.length === 0 ? (
+                        <div className="text-center py-3 text-slate-400 text-[11px]">
+                          {isEditingProfile
+                            ? "No certifications added yet. Use the upload form below to add certificates and proofs."
+                            : "No certifications added yet. Click 'Upgrade Academic Details' above to add verified credentials."}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {profile.certifications.map((cert, idx) => {
+                            const certName = getCertName(cert);
+                            const certIssuer = getCertIssuer(cert);
+                            const certFile = getCertFile(cert);
+
+                            return (
+                              <div
+                                key={idx}
+                                className="p-2.5 rounded-lg border border-campus-border bg-white shadow-2xs flex flex-col justify-between gap-2"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex items-start gap-2 min-w-0">
+                                    <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-100">
+                                      <Award className="w-4 h-4" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="font-bold text-slate-800 text-xs truncate" title={certName}>
+                                        {certName}
+                                      </div>
+                                      {certIssuer && (
+                                        <div className="text-[10px] text-slate-400 truncate">
+                                          {certIssuer}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {isEditingProfile && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveCert(cert)}
+                                      className="text-slate-300 hover:text-rose-600 font-bold text-sm leading-none p-1 rounded hover:bg-rose-50 transition-colors"
+                                      title="Delete certification"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-[10px]">
+                                  {certFile ? (
+                                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px] border border-emerald-200">
+                                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Proof Attached
+                                      </span>
+                                      {certFile.url && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setPreviewCertModal({
+                                              name: certName,
+                                              url: certFile.url || "",
+                                              file_name: certFile.name,
+                                            })
+                                          }
+                                          className="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 hover:underline truncate cursor-pointer"
+                                        >
+                                          <Eye className="w-3 h-3 text-blue-500" />
+                                          <span className="truncate max-w-[120px]">{certFile.name || "View Document"}</span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : isEditingProfile ? (
+                                    <label className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1">
+                                      <UploadCloud className="w-3 h-3" />
+                                      <span>Attach certificate file</span>
+                                      <input
+                                        type="file"
+                                        accept=".pdf,image/png,image/jpeg,image/jpg"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) handleUploadProofForCert(cert, file);
+                                        }}
+                                      />
+                                    </label>
+                                  ) : (
+                                    <span className="text-slate-400 text-[10px]">Verified Credential</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Add Certificate & Upload Document Form - ONLY when isEditingProfile is true */}
+                    {isEditingProfile && (
+                      <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-3">
+                        <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                          <Plus className="w-3.5 h-3.5 text-campus-primary" />
+                          Add New Certificate & Upload Proof Document
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="sm:col-span-2">
+                            <input
+                              type="text"
+                              placeholder="Certificate Title (e.g. AWS Solutions Architect, Docker Certified)..."
+                              value={newCertInput}
+                              onChange={(e) => setNewCertInput(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCert())}
+                              className="w-full p-2 rounded-lg border border-campus-border text-xs bg-white focus:outline-none focus:ring-1 focus:ring-campus-primary"
+                            />
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              placeholder="Issuing Org (e.g. AWS, Cisco)..."
+                              value={newCertIssuer}
+                              onChange={(e) => setNewCertIssuer(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCert())}
+                              className="w-full p-2 rounded-lg border border-campus-border text-xs bg-white focus:outline-none focus:ring-1 focus:ring-campus-primary"
+                            />
+                          </div>
+                        </div>
+
+                        {/* File Upload Selector */}
+                        <div>
+                          {!newCertFile ? (
+                            <label
+                              htmlFor="cert-file-input"
+                              className="border-2 border-dashed border-slate-300 hover:border-campus-primary/70 rounded-xl p-3 bg-white hover:bg-blue-50/30 cursor-pointer transition-all flex items-center justify-center gap-2 text-slate-600 block text-center"
+                            >
+                              <UploadCloud className="w-4 h-4 text-campus-primary" />
+                              <span className="font-semibold text-xs">Choose or Drop Certificate Proof Document</span>
+                              <span className="text-[10px] text-slate-400">(PDF, PNG, JPG up to 10MB)</span>
+                              <input
+                                id="cert-file-input"
+                                type="file"
+                                accept=".pdf,image/png,image/jpeg,image/jpg"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    if (file.size > 10 * 1024 * 1024) {
+                                      setCertUploadError("File size exceeds 10MB limit.");
+                                      return;
+                                    }
+                                    setCertUploadError(null);
+                                    setNewCertFile(file);
+                                    if (!newCertInput.trim()) {
+                                      const clean = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+                                      setNewCertInput(clean.charAt(0).toUpperCase() + clean.slice(1));
+                                    }
+                                  }
+                                }}
+                              />
+                            </label>
+                          ) : (
+                            <div className="flex items-center justify-between p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 text-xs">
+                              <div className="flex items-center gap-2 truncate">
+                                <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <div className="truncate">
+                                  <span className="font-bold text-slate-800">{newCertFile.name}</span>
+                                  <span className="text-[10px] text-slate-500 ml-2 font-mono">
+                                    ({(newCertFile.size / 1024).toFixed(1)} KB)
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setNewCertFile(null)}
+                                className="text-slate-400 hover:text-rose-600 font-bold px-2 py-0.5 rounded text-sm hover:bg-rose-50"
+                                title="Remove selected file"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {certUploadError && (
+                          <div className="text-[11px] text-rose-600 flex items-center gap-1 font-medium">
+                            <AlertCircle className="w-3 h-3 text-rose-500" />
+                            {certUploadError}
+                          </div>
+                        )}
+
+                        <div className="flex justify-end pt-1">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            type="button"
+                            disabled={isUploadingCert}
+                            onClick={handleAddCert}
+                            icon={<Plus className="w-3.5 h-3.5" />}
+                          >
+                            {isUploadingCert ? "Uploading..." : "Add & Upload Certification"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1266,49 +1803,110 @@ export default function StudentDashboardPage() {
                 <div className="pt-4 border-t border-campus-border space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-campus-text-primary">Featured Projects & Live Proofs</h4>
-                    <Button variant="outline" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={() => setShowProjModal(true)}>
-                      Add Project
-                    </Button>
+                    {!isEditingProfile ? (
+                      <span className="text-[10px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Locked &bull; Click &quot;Upgrade Academic Details&quot; to edit
+                      </span>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        icon={<Plus className="w-3.5 h-3.5" />}
+                        onClick={() => setShowProjModal(true)}
+                      >
+                        Add Project
+                      </Button>
+                    )}
                   </div>
 
                   <div className="space-y-3 text-xs">
-                    {profile.projects.map((proj, idx) => (
-                      <div key={idx} className="p-3.5 rounded-xl border border-campus-border bg-slate-50/60 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-campus-text-primary text-xs">{proj.title}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                            {proj.tech}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-campus-text-secondary">{proj.summary}</p>
-                        <div className="flex items-center gap-4 pt-1 text-[11px]">
-                          {proj.github && (
-                            <a href={proj.github} target="_blank" rel="noreferrer" className="text-campus-primary hover:underline flex items-center gap-1 font-semibold">
-                              GitHub Repo <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                          {proj.live && (
-                            <a href={proj.live} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline flex items-center gap-1 font-semibold">
-                              Live Demo <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
+                    {profile.projects.length === 0 ? (
+                      <div className="text-center py-4 text-slate-400 text-[11px] bg-slate-50/50 rounded-xl border border-campus-border">
+                        {isEditingProfile
+                          ? "No featured projects added. Click 'Add Project' above to add portfolio items."
+                          : "No featured projects listed. Click 'Upgrade Academic Details' to add projects."}
                       </div>
-                    ))}
+                    ) : (
+                      profile.projects.map((proj, idx) => (
+                        <div key={idx} className="p-3.5 rounded-xl border border-campus-border bg-slate-50/60 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-campus-text-primary text-xs">{proj.title}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
+                                {proj.tech}
+                              </span>
+                              {isEditingProfile && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveProject(idx)}
+                                  className="text-slate-400 hover:text-rose-600 font-bold text-sm leading-none p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="Remove project"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[11px] text-campus-text-secondary">{proj.summary}</p>
+                          <div className="flex items-center gap-4 pt-1 text-[11px]">
+                            {proj.github && (
+                              <a href={proj.github} target="_blank" rel="noreferrer" className="text-campus-primary hover:underline flex items-center gap-1 font-semibold">
+                                GitHub Repo <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                            {proj.live && (
+                              <a href={proj.live} target="_blank" rel="noreferrer" className="text-emerald-700 hover:underline flex items-center gap-1 font-semibold">
+                                Live Demo <ExternalLink className="w-3 h-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-campus-border flex justify-end">
-                  <Button
-                    variant="primary"
-                    size="md"
-                    icon={<Save className="w-4 h-4" />}
-                    onClick={handleSaveProfile}
-                    disabled={isSavingProfile}
-                  >
-                    {isSavingProfile ? "Saving Profile Changes..." : "Save All Profile & Portfolio Changes"}
-                  </Button>
-                </div>
+                {/* Unified Save Action Bar at the very bottom */}
+                {isEditingProfile && (
+                  <div className="pt-3 border-t border-campus-border">
+                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 text-blue-900 font-medium">
+                        <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                        <span>Ready to apply changes? Save to update your official academic credentials.</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => {
+                            setEditFullName(profile.full_name);
+                            setEditEmail(profile.email);
+                            setEditPhone(profile.phone);
+                            setEditBranch(profile.branch);
+                            setEditCgpa(profile.cgpa.toString());
+                            setEditTenth(profile.tenth_percentage.toString());
+                            setEditTwelfth(profile.twelfth_percentage.toString());
+                            setEditBacklogs(profile.active_backlogs.toString());
+                            setEditDomain(profile.primary_domain);
+                            setIsEditingProfile(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          icon={<Save className="w-3.5 h-3.5" />}
+                          onClick={handleSaveProfile}
+                          disabled={isSavingProfile}
+                        >
+                          {isSavingProfile ? "Saving..." : "Save Academic Upgrades"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Resume Management & In-Browser Preview */}
@@ -1475,7 +2073,7 @@ export default function StudentDashboardPage() {
         {activeTab === "drives" && (
           <div className="space-y-6 animate-fade-in">
             {/* Filter Bar & Search */}
-            <div className="card-squarespace p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-2">
                 {[
                   { id: "ALL", label: "All Drives" },
@@ -1486,10 +2084,10 @@ export default function StudentDashboardPage() {
                   <button
                     key={f.id}
                     onClick={() => setDriveFilter(f.id as any)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       driveFilter === f.id
-                        ? "bg-campus-primary text-white shadow-xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/20"
+                        : "bg-slate-100/90 text-slate-700 hover:bg-slate-200 hover:text-slate-900"
                     }`}
                   >
                     {f.label}
@@ -1497,13 +2095,14 @@ export default function StudentDashboardPage() {
                 ))}
               </div>
 
-              <div className="relative">
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search company or role..."
                   value={driveSearch}
                   onChange={(e) => setDriveSearch(e.target.value)}
-                  className="pl-3 pr-3 py-1.5 text-xs rounded-lg border border-campus-border bg-white w-64"
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/60 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
                 />
               </div>
             </div>
@@ -1511,8 +2110,10 @@ export default function StudentDashboardPage() {
             {/* Drive Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredDrives.length === 0 ? (
-                <div className="col-span-2 card-squarespace p-12 text-center text-xs text-slate-500">
-                  No recruitment drives matching your filters.
+                <div className="col-span-2 rounded-3xl border border-slate-200/90 bg-white/95 p-12 text-center text-xs text-slate-500 shadow-xs">
+                  <Building className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="font-bold text-slate-700 text-sm">No recruitment drives found</p>
+                  <p className="mt-1 text-slate-500">Try adjusting your search criteria or filter options.</p>
                 </div>
               ) : (
                 filteredDrives.map((drive) => {
@@ -1522,54 +2123,72 @@ export default function StudentDashboardPage() {
                   return (
                     <div
                       key={drive.id}
-                      className="card-squarespace p-6 border border-campus-border hover:border-slate-300 transition-all flex flex-col justify-between space-y-4"
+                      className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 shadow-xs hover:shadow-xl hover:border-indigo-300/80 transition-all duration-300 flex flex-col justify-between space-y-4 relative overflow-hidden group"
                     >
-                      <div className="space-y-3">
+                      {/* Top Accent Gradient Bar */}
+                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 opacity-90 group-hover:h-2 transition-all duration-300" />
+
+                      <div className="space-y-4 pt-1">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-extrabold text-campus-primary text-lg">
-                              {drive.company_name[0]}
-                            </div>
+                          <div className="flex items-center gap-3.5">
+                            <CompanyLogo
+                              companyName={drive.company_name}
+                              size="xl"
+                              className="rounded-2xl shrink-0 group-hover:scale-105 transition-transform"
+                            />
                             <div>
-                              <h3 className="font-bold text-base text-campus-text-primary leading-tight">
+                              <h3 className="font-black text-lg text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors">
                                 {drive.company_name}
                               </h3>
-                              <div className="text-xs font-semibold text-campus-primary mt-0.5">
-                                {drive.role_title}
+                              <div className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md mt-1 border border-indigo-100">
+                                <span>{drive.role_title}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="text-right">
-                            <span className="text-lg font-extrabold text-campus-text-primary block">
+                          <div className="text-right shrink-0">
+                            <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent block">
                               {drive.ctc_lpa} LPA
                             </span>
-                            <span className="text-[10px] text-slate-500">Fixed + Variable</span>
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Fixed + Variable</span>
                           </div>
                         </div>
 
-                        {/* Drive Details */}
-                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                          <div><span className="font-semibold">Drive Date:</span> {drive.drive_date}</div>
-                          <div><span className="font-semibold">Venue:</span> {drive.venue}</div>
-                          <div><span className="font-semibold">Min CGPA:</span> {drive.min_cgpa.toFixed(1)}</div>
-                          <div><span className="font-semibold">Branches:</span> {drive.allowed_branches.join(", ")}</div>
+                        {/* Drive Details Grid */}
+                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="truncate"><strong className="text-slate-700">Date:</strong> {drive.drive_date}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                            <span className="truncate"><strong className="text-slate-700">Venue:</strong> {drive.venue}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span className="truncate"><strong className="text-slate-700">Min CGPA:</strong> {drive.min_cgpa.toFixed(1)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <Building className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
+                            <span className="truncate"><strong className="text-slate-700">Branches:</strong> {drive.allowed_branches.join(", ")}</span>
+                          </div>
                         </div>
 
                         {/* Deterministic Eligibility Status Badge */}
                         <div>
                           {isEligible ? (
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Eligible to Apply (All Benchmarks Cleared)
+                              <span>Eligible to Apply (All Benchmarks Cleared)</span>
                             </div>
                           ) : (
-                            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-1">
+                            <div className="p-3 rounded-xl bg-rose-50/80 border border-rose-200/80 text-xs text-rose-800 space-y-1">
                               <div className="font-bold flex items-center gap-1.5">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                                Ineligible for this Drive:
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <span>Ineligible for this Drive:</span>
                               </div>
-                              <ul className="list-disc list-inside text-[11px] text-rose-700">
+                              <ul className="list-disc list-inside text-[11px] text-rose-700 space-y-0.5">
                                 {reasons.map((r, i) => (
                                   <li key={i}>{r}</li>
                                 ))}
@@ -1581,27 +2200,33 @@ export default function StudentDashboardPage() {
 
                       {/* Action Button */}
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-500 font-medium">
-                          Deadline: {drive.deadline || "Open"}
+                        <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>Deadline: <strong>{drive.deadline || "Open"}</strong></span>
                         </span>
 
                         {isAlreadyApplied ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             Applied
                           </span>
                         ) : isEligible ? (
-                          <Button
-                            variant="primary"
-                            size="sm"
+                          <button
+                            type="button"
                             onClick={() => setApplyModalDrive(drive)}
+                            className="btn-gradient text-xs py-2 px-4 shadow-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer font-bold"
                           >
-                            Apply Now
-                          </Button>
+                            <span>Apply Now</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
                         ) : (
-                          <Button variant="secondary" size="sm" disabled>
+                          <button
+                            type="button"
+                            disabled
+                            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                          >
                             Ineligible
-                          </Button>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -1610,72 +2235,6 @@ export default function StudentDashboardPage() {
               )}
             </div>
 
-            {/* Apply Confirmation Modal */}
-            {applyModalDrive && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-                <div className="card-squarespace max-w-md w-full p-6 space-y-4 shadow-2xl">
-                  <div className="flex items-center justify-between border-b border-campus-border pb-3">
-                    <h3 className="text-base font-bold text-campus-text-primary">
-                      Confirm Drive Application
-                    </h3>
-                    <button
-                      onClick={() => setApplyModalDrive(null)}
-                      className="text-slate-400 hover:text-slate-600 text-sm font-semibold"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  {applyMessage && (
-                    <div
-                      className={`p-3 rounded-lg text-xs ${
-                        applyMessage.type === "success"
-                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          : "bg-rose-50 text-rose-800 border border-rose-200"
-                      }`}
-                    >
-                      {applyMessage.text}
-                    </div>
-                  )}
-
-                  <div className="text-xs space-y-2">
-                    <div className="p-3 rounded-lg bg-slate-50 border border-campus-border space-y-1">
-                      <div className="font-bold text-campus-text-primary text-sm">
-                        {applyModalDrive.company_name}
-                      </div>
-                      <div className="text-slate-600">Role: {applyModalDrive.role_title} &bull; Package: {applyModalDrive.ctc_lpa} LPA</div>
-                      <div className="text-[11px] text-slate-500">Date: {applyModalDrive.drive_date} &bull; Venue: {applyModalDrive.venue}</div>
-                    </div>
-
-                    <div className="pt-2">
-                      <span className="font-semibold text-slate-700 block mb-1">Attached Resume:</span>
-                      <div className="p-2.5 rounded-lg border border-campus-border bg-white flex items-center justify-between text-xs">
-                        <span className="font-medium text-campus-primary">{resumeFileName}</span>
-                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">Verified</span>
-                      </div>
-                    </div>
-
-                    <p className="text-[11px] text-slate-500 pt-2">
-                      By submitting, you agree to attend all recruitment rounds adhering to the college placement code of conduct.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                    <Button variant="ghost" size="sm" onClick={() => setApplyModalDrive(null)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleConfirmApply}
-                      disabled={applying}
-                    >
-                      {applying ? "Submitting Application..." : "Confirm & Submit Application"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -1684,75 +2243,108 @@ export default function StudentDashboardPage() {
         {/* ========================================================================= */}
         {activeTab === "applications" && (
           <div className="space-y-6 animate-fade-in">
-            <div>
-              <h2 className="text-lg font-bold text-campus-text-primary">Live Application & Round Tracker</h2>
-              <p className="text-xs text-campus-text-secondary mt-0.5">
-                Real-time visual timeline of your active hiring pipelines and upcoming round notifications.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-indigo-600" />
+                  <span>Live Application & Round Tracker</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time visual timeline of your active hiring pipelines and upcoming round notifications.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200/80 self-start sm:self-auto">
+                {applications.length} Active {applications.length === 1 ? "Pipeline" : "Pipelines"}
+              </span>
             </div>
 
             {applications.length === 0 ? (
-              <div className="card-squarespace p-12 text-center text-xs text-slate-500">
-                <Clock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="font-semibold text-campus-text-primary text-sm">No applications submitted yet</p>
-                <p className="mt-1">Explore available opportunities in the Drive Discovery tab to apply.</p>
-                <div className="mt-4">
-                  <Button variant="primary" size="sm" onClick={() => setActiveTab("drives")}>
-                    Browse Drives
-                  </Button>
+              <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-12 text-center text-xs text-slate-500 shadow-xs space-y-3">
+                <Clock className="w-12 h-12 text-slate-300 mx-auto" />
+                <div>
+                  <p className="font-black text-slate-800 text-base">No applications submitted yet</p>
+                  <p className="text-slate-500 text-xs mt-1">Explore available recruitment opportunities in Drive Discovery to submit applications.</p>
+                </div>
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("drives")}
+                    className="btn-gradient text-xs py-2 px-5 font-bold shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>Browse Eligible Drives</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ) : (
               <div className="space-y-6">
                 {applications.map((app) => (
-                  <div key={app.id} className="card-squarespace p-6 border border-campus-border space-y-6">
+                  <div
+                    key={app.id}
+                    className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 sm:p-7 shadow-xs hover:shadow-lg transition-all space-y-6 relative overflow-hidden group"
+                  >
+                    {/* Top Accent Gradient Bar */}
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500 opacity-90 group-hover:h-2 transition-all duration-300" />
+
                     {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-campus-border pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold text-campus-text-primary">{app.company_name}</h3>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                            {app.role_title} ({app.ctc_lpa} LPA)
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          Applied on: {app.applied_at ? new Date(app.applied_at).toLocaleDateString() : "Recently"}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 pt-1">
+                      <div className="flex items-center gap-3.5">
+                        <CompanyLogo companyName={app.company_name} size="lg" className="rounded-xl shrink-0" />
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-xl font-black text-slate-900">{app.company_name}</h3>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-bold border border-indigo-200/80">
+                              {app.role_title}
+                            </span>
+                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 font-black border border-emerald-200">
+                              {app.ctc_lpa} LPA
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>Applied on: {app.applied_at ? new Date(app.applied_at).toLocaleDateString() : "Recently"}</span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-campus-primary block">
-                          Current Stage: {app.current_round_name}
-                        </span>
+                      <div className="text-left sm:text-right shrink-0">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50/80 border border-indigo-200/80 text-xs font-black text-indigo-700 shadow-2xs">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                          <span>Stage: {app.current_round_name}</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Step-by-Step Round Pipeline */}
-                    <div className="overflow-x-auto py-2">
-                      <div className="flex items-center min-w-[550px] justify-between relative">
+                    {/* Step-by-Step Round Pipeline Stepper */}
+                    <div className="overflow-x-auto py-3">
+                      <div className="flex items-center min-w-[580px] justify-between relative px-4">
                         {/* Connecting Line */}
-                        <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
+                        <div className="absolute top-5 left-10 right-10 h-1 bg-slate-200 rounded-full -z-0" />
 
                         {roundPipelineSteps.map((step, idx) => {
                           const status = getStepStatus(app.current_status, step.key);
 
                           return (
-                            <div key={step.key} className="flex flex-col items-center relative z-10 text-center">
+                            <div key={step.key} className="flex flex-col items-center relative z-10 text-center max-w-[90px]">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
+                                className={`w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs transition-all ${
                                   status === "completed"
-                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    ? "bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-100"
                                     : status === "current"
-                                    ? "bg-campus-primary text-white ring-4 ring-blue-100 shadow-md animate-pulse"
+                                    ? "bg-gradient-to-tr from-indigo-600 to-violet-600 text-white ring-4 ring-indigo-100 shadow-lg shadow-indigo-500/30 animate-pulse-subtle"
                                     : "bg-white border-2 border-slate-300 text-slate-400"
                                 }`}
                               >
-                                {status === "completed" ? <Check className="w-4 h-4" /> : idx + 1}
+                                {status === "completed" ? (
+                                  <Check className="w-4 h-4 stroke-[3]" />
+                                ) : (
+                                  idx + 1
+                                )}
                               </div>
                               <span
-                                className={`text-[11px] mt-2 font-semibold ${
+                                className={`text-[11px] mt-2 font-bold leading-tight ${
                                   status === "current"
-                                    ? "text-campus-primary font-bold"
+                                    ? "text-indigo-700 font-extrabold"
                                     : status === "completed"
                                     ? "text-emerald-800"
                                     : "text-slate-400"
@@ -1767,15 +2359,24 @@ export default function StudentDashboardPage() {
                     </div>
 
                     {/* Round Instructions & Venue Alert Card */}
-                    <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 text-xs space-y-2">
-                      <div className="flex items-center gap-2 font-bold text-blue-900">
-                        <Info className="w-4 h-4 text-blue-600" />
-                        Upcoming Round Instructions from Placement Cell:
+                    <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/70 via-blue-50/50 to-slate-50 border border-indigo-100/90 text-xs space-y-3">
+                      <div className="flex items-center gap-2 font-black text-slate-800">
+                        <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                        <span>Upcoming Round Guidelines from Placement Cell:</span>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-blue-800">
-                        <div><span className="font-semibold">Date & Slot:</span> {app.round_date || "To be announced"} &bull; {app.round_slot || "Full Day"}</div>
-                        <div><span className="font-semibold">Venue / Link:</span> {app.venue_or_link || "Auditorium Hall A"}</div>
-                        <div><span className="font-semibold">Guidelines:</span> {app.instructions || "Bring college ID and updated resume."}</div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/60 shadow-2xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Date & Slot</span>
+                          <span className="font-extrabold text-slate-800 text-xs">{app.round_date || "To be announced"} • {app.round_slot || "Full Day"}</span>
+                        </div>
+                        <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/60 shadow-2xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Venue / Virtual Link</span>
+                          <span className="font-extrabold text-slate-800 text-xs truncate block">{app.venue_or_link || "Auditorium Hall A"}</span>
+                        </div>
+                        <div className="bg-white/80 p-3 rounded-xl border border-indigo-100/60 shadow-2xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Guidelines</span>
+                          <span className="font-medium text-slate-700 text-xs block">{app.instructions || "Bring college ID and updated resume."}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1790,102 +2391,133 @@ export default function StudentDashboardPage() {
         {/* ========================================================================= */}
         {activeTab === "offers" && (
           <div className="space-y-6 animate-fade-in">
-            <div>
-              <h2 className="text-lg font-bold text-campus-text-primary">Offer & Acceptance Desk</h2>
-              <p className="text-xs text-campus-text-secondary mt-0.5">
-                Official placement offers extended by campus recruitment partners.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-emerald-600" />
+                  <span>Offer & Acceptance Desk</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Official campus placement offers extended by university recruitment partners with verified financial terms.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{offers.length} Official {offers.length === 1 ? "Offer" : "Offers"} Recorded</span>
+              </span>
             </div>
 
             {offerActionMsg && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600" />
-                <span>{offerActionMsg}</span>
+              <div className="p-4 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2.5 shadow-2xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-bold">{offerActionMsg}</span>
               </div>
             )}
 
             {offers.length === 0 ? (
-              <div className="card-squarespace p-12 text-center text-xs text-slate-500">
-                <Award className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                <p className="font-semibold text-campus-text-primary text-sm">No offer letters on record yet</p>
-                <p className="mt-1">Offers will appear here once selection results are officially published by the TPO.</p>
+              <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-12 text-center text-xs text-slate-500 shadow-xs space-y-3">
+                <Award className="w-12 h-12 text-slate-300 mx-auto" />
+                <div>
+                  <p className="font-black text-slate-800 text-base">No offer letters on record yet</p>
+                  <p className="text-slate-500 text-xs mt-1">Offers will appear here once selection rounds conclude and results are officially published by the TPO.</p>
+                </div>
               </div>
             ) : (
               <div className="space-y-6">
                 {offers.map((offer) => (
                   <div
                     key={offer.id}
-                    className="card-squarespace p-6 border-2 border-emerald-200 bg-emerald-50/10 space-y-6"
+                    className="rounded-3xl border-2 border-emerald-300/80 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 p-6 sm:p-7 shadow-md hover:shadow-xl transition-all space-y-6 relative overflow-hidden"
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-campus-border pb-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-xl font-bold text-campus-text-primary">{offer.company_name}</h3>
-                          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            {offer.role_title}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          Location: {offer.job_location || "Bengaluru / Hyderabad"} &bull; Joining: {offer.joining_date || "July 2026"}
+                    {/* Top Gradient Line */}
+                    <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-100/80 pb-4 pt-1">
+                      <div className="flex items-center gap-3.5">
+                        <CompanyLogo companyName={offer.company_name} size="xl" className="rounded-2xl shrink-0" />
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-2xl font-black text-slate-900">{offer.company_name}</h3>
+                            <span className="text-xs px-3 py-0.5 rounded-full font-bold bg-emerald-100/80 text-emerald-800 border border-emerald-200">
+                              {offer.role_title}
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-white px-2.5 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" /> Verified Placement Offer
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                            <span>Location: <strong>{offer.job_location || "Bengaluru / Hyderabad"}</strong></span>
+                            <span>•</span>
+                            <span>Joining: <strong>{offer.joining_date || "July 2026"}</strong></span>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-2xl font-extrabold text-emerald-700 block">{offer.ctc_lpa} LPA</span>
-                        <span className="text-[10px] text-slate-500">Gross Cost to Company</span>
+                      <div className="text-left sm:text-right shrink-0">
+                        <span className="text-3xl font-black bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent block">
+                          {offer.ctc_lpa} LPA
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gross Cost to Company</span>
                       </div>
                     </div>
 
-                    {/* Financial Terms & Breakdown */}
+                    {/* Financial Terms & Breakdown Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                      <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Base Salary</span>
-                        <span className="text-sm font-extrabold text-slate-800">{offer.base_salary_lpa || (offer.ctc_lpa * 0.8).toFixed(1)} LPA</span>
+                      <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white/90 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Base Salary</span>
+                        <span className="text-base font-black text-slate-900">{offer.base_salary_lpa || (offer.ctc_lpa * 0.8).toFixed(1)} LPA</span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">Fixed Annual Pay</span>
                       </div>
-                      <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Joining Bonus</span>
-                        <span className="text-sm font-extrabold text-slate-800">{offer.joining_bonus_lpa || "2.0"} LPA</span>
+                      <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white/90 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Joining Bonus</span>
+                        <span className="text-base font-black text-slate-900">{offer.joining_bonus_lpa || "2.0"} LPA</span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">1st Year Retention</span>
                       </div>
-                      <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Service Bond</span>
-                        <span className="text-sm font-extrabold text-slate-800">{offer.bond_period_months ? `${offer.bond_period_months} Months` : "None"}</span>
+                      <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white/90 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Service Bond</span>
+                        <span className="text-base font-black text-slate-900">{offer.bond_period_months ? `${offer.bond_period_months} Months` : "None"}</span>
+                        <span className="text-[10px] text-slate-400 block mt-0.5">University Standard</span>
                       </div>
-                      <div className="p-3 rounded-xl border border-slate-200 bg-white">
-                        <span className="text-[10px] font-bold uppercase text-slate-400 block">Status</span>
-                        <span className={`text-xs font-bold inline-block mt-0.5 ${offer.status === "ACCEPTED" ? "text-emerald-700" : "text-amber-700"}`}>
+                      <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white/90 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Status</span>
+                        <span className={`text-xs font-black inline-flex items-center gap-1 mt-0.5 px-2.5 py-0.5 rounded-full ${
+                          offer.status === "ACCEPTED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${offer.status === "ACCEPTED" ? "bg-emerald-600" : "bg-amber-600 animate-pulse"}`} />
                           {offer.status}
                         </span>
                       </div>
                     </div>
 
                     {/* Action Controls */}
-                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
-                      <div className="text-[11px] text-slate-500">
-                        College Policy: Accepting this offer locks your placement record adhering to university guidelines.
+                    <div className="pt-3 border-t border-emerald-100/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs">
+                      <div className="text-[11px] text-slate-500 font-medium">
+                        College Policy: Accepting this offer locks your placement record adhering to university TPO guidelines.
                       </div>
 
                       <div className="flex items-center gap-3">
                         {offer.status === "ACCEPTED" ? (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 shadow-sm border border-emerald-300">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                             Offer Accepted & Confirmed
                           </div>
                         ) : (
                           <>
-                            <Button
-                              variant="outline"
-                              size="sm"
+                            <button
+                              type="button"
                               onClick={() => handleOfferAction(offer.id, "DECLINED")}
+                              className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold text-xs transition-colors cursor-pointer"
                             >
                               Decline Offer
-                            </Button>
-                            <Button
-                              variant="primary"
-                              size="sm"
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleOfferAction(offer.id, "ACCEPTED")}
+                              className="btn-gradient text-xs py-2 px-5 font-bold shadow-md hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer text-white"
                             >
-                              Accept Offer
-                            </Button>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Accept Offer</span>
+                            </button>
                           </>
                         )}
                       </div>
@@ -1896,6 +2528,218 @@ export default function StudentDashboardPage() {
             )}
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: AI PLACEMENT MENTOR & INTERACTIVE ASSISTANT */}
+        {/* ========================================================================= */}
+        {activeTab === "ai-mentor" && (
+          <div className="space-y-8 animate-fade-in">
+            {/* Header Card */}
+            <div className="rounded-3xl p-7 sm:p-8 bg-gradient-to-r from-slate-950 via-indigo-950 to-purple-950 text-white border border-indigo-500/30 shadow-xl relative overflow-hidden">
+              {/* Background ambient orbs */}
+              <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-1/3 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-500/30">
+                    <Sparkles className="w-7 h-7 text-indigo-300 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">AI Placement & Career Intelligence Center</h2>
+                      <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Live Grounded
+                      </span>
+                    </div>
+                    <p className="text-xs text-indigo-200/90 mt-1 max-w-2xl leading-relaxed">
+                      Real-time career advisor synchronized with university database records, placement eligibility benchmarks, and technical interview drills.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-4 text-[11px] text-white">
+                      <span className="bg-white/10 px-3 py-1 rounded-xl border border-white/10 font-bold backdrop-blur-sm">
+                        Candidate: {profile.full_name}
+                      </span>
+                      <span className="bg-white/10 px-3 py-1 rounded-xl border border-white/10 font-bold backdrop-blur-sm">
+                        CGPA: {profile.cgpa.toFixed(2)} ({profile.branch})
+                      </span>
+                      <span className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-xl border border-emerald-400/30 font-black backdrop-blur-sm">
+                        Readiness: {profile.readiness_score}/100 ({profile.readiness_level.replace("_", " ")})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex md:flex-col items-center md:items-end gap-2 shrink-0">
+                  <Link
+                    href="/student/mock-interview"
+                    className="btn-gradient py-2.5 px-5 rounded-xl text-white font-bold text-xs shadow-md shadow-indigo-500/30 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2"
+                  >
+                    <span>Full AI Mock Interview</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* 3 Interactive Quick Intelligence Pillars */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Card 1: Eligible Drives */}
+              <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 space-y-4 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all relative overflow-hidden group">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 opacity-90" />
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Building className="w-4 h-4 text-emerald-600" />
+                      Drive Eligibility
+                    </span>
+                    <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      {drives.filter(d => checkDriveEligibility(d).isEligible).length} Eligible
+                    </span>
+                  </div>
+                  <h3 className="font-black text-base text-slate-900">Upcoming Recruitment Matches</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Based on your CGPA ({profile.cgpa.toFixed(2)}) and {profile.branch} branch, you qualify for top tier campus drives including Google Cloud, AWS, and Goldman Sachs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("drives")}
+                  className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-indigo-700 border border-slate-200/90 hover:border-indigo-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                >
+                  <span>Explore Eligible Drives</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-indigo-600" />
+                </button>
+              </div>
+
+              {/* Card 2: Skill Gap Radar */}
+              <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 space-y-4 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all relative overflow-hidden group">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 to-orange-500 opacity-90" />
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Target className="w-4 h-4 text-amber-500" />
+                      Skill Gap Diagnostic
+                    </span>
+                    <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                      {profile.skills.length} Verified
+                    </span>
+                  </div>
+                  <h3 className="font-black text-base text-slate-900">Target: SRE & Cloud Roles</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Adding <code className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">Docker</code> or <code className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">Kubernetes</code> will elevate your shortlisting match to 96%.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("profile")}
+                  className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-amber-50 text-amber-800 border border-slate-200/90 hover:border-amber-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                >
+                  <span>Update Verified Skills</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-amber-600" />
+                </button>
+              </div>
+
+              {/* Card 3: AI Mock Room */}
+              <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 space-y-4 flex flex-col justify-between shadow-xs hover:shadow-lg transition-all relative overflow-hidden group">
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-90" />
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-600" />
+                      Interview Drills
+                    </span>
+                    <span className="text-xs font-black text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
+                      AI Powered
+                    </span>
+                  </div>
+                  <h3 className="font-black text-base text-slate-900">Technical & Scenario Q&A</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Simulate real-time technical rounds for Site Reliability Engineer and Full-Stack roles with instant NLP evaluations.
+                  </p>
+                </div>
+                <Link
+                  href="/student/mock-interview"
+                  className="w-full py-2.5 rounded-xl btn-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                >
+                  <span>Launch Mock Interview</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-white" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Embedded Live Interactive AI Placement Chat Studio */}
+            <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 sm:p-7 space-y-5 shadow-xs">
+              <div className="border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-indigo-600" />
+                    <span>Interactive Placement Chat Assistant</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Ask questions below or use the floating assistant bubble available anywhere in your portal.
+                  </p>
+                </div>
+                <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 self-start sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  AI Model Active
+                </span>
+              </div>
+
+              {/* Chat Quick Action Chips */}
+              <div className="space-y-2.5">
+                <span className="text-xs font-bold text-slate-700 block">Frequently Asked Placement Questions (Click to Ask):</span>
+                <div className="flex flex-wrap gap-2.5">
+                  {[
+                    "Which campus drives am I eligible for?",
+                    "How can I improve my placement readiness score?",
+                    "What are my skill gaps for SRE / Dev roles?",
+                    "Give me an interview scenario question",
+                    "ATS resume optimization tips",
+                  ].map((chip, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        const floatingBtn = document.querySelector('button[aria-label="Open AI Placement ChatBot"]') as HTMLButtonElement;
+                        if (floatingBtn) floatingBtn.click();
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-50/90 hover:bg-indigo-50 text-indigo-900 font-semibold text-xs border border-slate-200/90 hover:border-indigo-300 shadow-2xs hover:shadow-xs transition-all flex items-center gap-2 cursor-pointer hover:scale-[1.02]"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      <span>{chip}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Visual Chat Guidance Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-indigo-50/80 via-blue-50/50 to-purple-50/60 border border-indigo-100/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="text-xs text-slate-700 space-y-0.5">
+                  <div className="font-black text-indigo-950 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span>Always-On AI Placement Assistant</span>
+                  </div>
+                  <p className="text-slate-600 text-xs leading-relaxed">
+                    The CampusLink AI ChatBot at the bottom right maintains your full student profile context and can answer eligibility questions, evaluate mock answers, and suggest resume tweaks!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const floatingBtn = document.querySelector('button[aria-label="Open AI Placement ChatBot"]') as HTMLButtonElement;
+                    if (floatingBtn) floatingBtn.click();
+                  }}
+                  className="btn-gradient px-5 py-2.5 rounded-xl font-bold text-xs text-white shadow-md shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all shrink-0 cursor-pointer flex items-center gap-1.5"
+                >
+                  <Bot className="w-4 h-4" />
+                  <span>Open AI Assistant</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {/* Modal: Add Project */}
         {showProjModal && (
@@ -2129,7 +2973,10 @@ export default function StudentDashboardPage() {
                   </h2>
                   <ul className="list-disc list-inside text-slate-700 text-xs pt-1 space-y-0.5">
                     {profile.certifications.map((cert, idx) => (
-                      <li key={idx} className="font-medium">{cert}</li>
+                      <li key={idx} className="font-medium">
+                        {getCertName(cert)}
+                        {getCertIssuer(cert) ? ` — ${getCertIssuer(cert)}` : ""}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -2143,8 +2990,178 @@ export default function StudentDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Certificate Document Preview Modal */}
+        {previewCertModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-5 space-y-4 shadow-2xl border border-campus-border">
+              <div className="flex items-center justify-between border-b border-campus-border pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">{previewCertModal.name}</h3>
+                    <p className="text-[11px] text-slate-400 truncate max-w-xs">{previewCertModal.file_name || "Certificate Proof Document"}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {previewCertModal.url && (
+                    <a
+                      href={previewCertModal.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs px-2.5 py-1.5 rounded-lg border border-campus-border hover:bg-slate-50 flex items-center gap-1 font-semibold text-slate-700 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> Open File
+                    </a>
+                  )}
+                  <button
+                    onClick={() => setPreviewCertModal(null)}
+                    className="text-slate-400 hover:text-slate-600 p-1 font-bold text-lg leading-none cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50 min-h-[350px] flex items-center justify-center">
+                {previewCertModal.url && (previewCertModal.url.startsWith("data:image/") || previewCertModal.file_name?.match(/\.(png|jpe?g|webp)$/i)) ? (
+                  <img
+                    src={previewCertModal.url}
+                    alt={previewCertModal.name}
+                    className="max-h-[500px] w-auto mx-auto object-contain rounded-lg p-2"
+                  />
+                ) : previewCertModal.url ? (
+                  <iframe
+                    src={previewCertModal.url}
+                    title={previewCertModal.name}
+                    className="w-full h-[500px] rounded-lg border-0 bg-white"
+                  />
+                ) : (
+                  <div className="text-center p-8 text-slate-400 text-xs">
+                    No preview available for this document.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Global Apply Confirmation Modal */}
+        {applyModalDrive && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+            <div className="card-squarespace max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-campus-border pb-3">
+                <h3 className="text-base font-bold text-campus-text-primary">
+                  Confirm Drive Application
+                </h3>
+                <button
+                  onClick={() => setApplyModalDrive(null)}
+                  className="text-slate-400 hover:text-slate-600 text-sm font-semibold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {applyMessage && (
+                <div
+                  className={`p-3 rounded-lg text-xs ${
+                    applyMessage.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : "bg-rose-50 text-rose-800 border border-rose-200"
+                  }`}
+                >
+                  {applyMessage.text}
+                </div>
+              )}
+
+              <div className="text-xs space-y-2">
+                <div className="p-3 rounded-lg bg-slate-50 border border-campus-border flex items-center gap-3">
+                  <CompanyLogo companyName={applyModalDrive.company_name} size="md" className="rounded-lg shrink-0" />
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <div className="font-bold text-campus-text-primary text-sm truncate">
+                      {applyModalDrive.company_name}
+                    </div>
+                    <div className="text-slate-600 truncate">Role: {applyModalDrive.role_title} &bull; Package: {applyModalDrive.ctc_lpa} LPA</div>
+                    <div className="text-[11px] text-slate-500 truncate">Date: {applyModalDrive.drive_date} &bull; Venue: {applyModalDrive.venue}</div>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <span className="font-semibold text-slate-700 block mb-1">Attached Resume:</span>
+                  <div className="p-2.5 rounded-lg border border-campus-border bg-white flex items-center justify-between text-xs">
+                    <span className="font-medium text-campus-primary">{resumeFileName}</span>
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded">Verified</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 pt-2">
+                  By submitting, you agree to attend all recruitment rounds adhering to the college placement code of conduct.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <Button variant="ghost" size="sm" onClick={() => setApplyModalDrive(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleConfirmApply}
+                  disabled={applying}
+                >
+                  {applying ? "Submitting Application..." : "Confirm & Submit Application"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Floating Interactive Placement AI Assistant */}
+        <StudentAIChatBot
+          studentProfile={{
+            id: profile.id,
+            full_name: profile.full_name,
+            cgpa: profile.cgpa,
+            branch: profile.branch,
+            readiness_score: profile.readiness_score,
+            readiness_level: profile.readiness_level,
+            skills: profile.skills,
+          }}
+          onTriggerAction={(act) => {
+            if (act === "VIEW_DRIVES") setActiveTab("drives");
+            else if (act === "VIEW_READINESS") setActiveTab("overview");
+            else if (act === "VIEW_APPLICATIONS") setActiveTab("applications");
+            else if (act === "EDIT_PROFILE") setActiveTab("profile");
+            else if (act === "UPLOAD_RESUME") {
+              setActiveTab("profile");
+              setShowResumeModal(true);
+            } else if (act === "ADD_PROJECT") {
+              setActiveTab("profile");
+              setShowProjModal(true);
+            }
+          }}
+        />
       </div>
     </div>
+  );
+}
+
+export default function StudentDashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-campus-bg">
+          <div className="text-center space-y-2">
+            <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <div className="text-sm font-semibold text-slate-800">Loading Student Dashboard...</div>
+          </div>
+        </div>
+      }
+    >
+      <StudentDashboardContent />
+    </Suspense>
   );
 }
 

@@ -154,8 +154,12 @@ def apply_for_drive(
         Offer.status == OfferStatus.ACCEPTED
     ).first()
     if accepted_offer:
-        # If user has an offer, check if this drive is an upgrade (e.g. CTC must be significantly higher)
-        if drive.ctc_lpa <= accepted_offer.ctc_lpa:
+        # Internships are exempt from the 1-student-1-fulltime-job lock policy
+        job_type_str = str(getattr(drive, "job_type", "")).upper()
+        category_str = str(getattr(drive, "category", "")).upper()
+        is_internship = "INTERNSHIP" in job_type_str or "INTERNSHIP" in category_str
+
+        if not is_internship and drive.ctc_lpa <= accepted_offer.ctc_lpa:
             raise HTTPException(
                 status_code=400,
                 detail=f"Policy Restriction: You have already accepted an offer from {accepted_offer.company_name} ({accepted_offer.ctc_lpa} LPA). College placement policy permits applying only to Super Dream drives with higher CTC."

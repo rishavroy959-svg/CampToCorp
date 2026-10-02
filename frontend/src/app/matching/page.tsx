@@ -8,6 +8,7 @@ import {
   ExplainabilityCard,
   StatusPill,
   Button,
+  CompanyLogo,
 } from "@/components/campuslink";
 import {
   Briefcase,
@@ -190,16 +191,18 @@ export default function MatchingScreen() {
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Breadcrumbs & Drive Header */}
         <div className="card-squarespace p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-campus-text-secondary uppercase tracking-wider mb-2">
-              <Building className="w-3.5 h-3.5 text-campus-primary" />
-              <span>Drive AI Candidate Matching</span>
-              <span>/</span>
-              <span className="text-campus-primary font-bold">{driveInfo.company}</span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-campus-text-primary">
-              {driveInfo.role}
-            </h1>
+          <div className="flex items-start gap-4">
+            <CompanyLogo companyName={driveInfo.company} size="xl" className="rounded-2xl shrink-0 mt-1" />
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-campus-text-secondary uppercase tracking-wider mb-2">
+                <Building className="w-3.5 h-3.5 text-campus-primary" />
+                <span>Drive AI Candidate Matching</span>
+                <span>/</span>
+                <span className="text-campus-primary font-bold">{driveInfo.company}</span>
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tight text-campus-text-primary">
+                {driveInfo.role}
+              </h1>
             <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-campus-text-secondary">
               <span className="inline-flex items-center gap-1 font-semibold text-campus-primary">
                 <DollarSign className="w-3.5 h-3.5" /> CTC: {driveInfo.ctc}
@@ -211,6 +214,7 @@ export default function MatchingScreen() {
               <span>Branches: {driveInfo.allowedBranches.join(", ")}</span>
             </div>
           </div>
+        </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <Button

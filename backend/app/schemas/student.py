@@ -15,7 +15,7 @@ class StudentBase(BaseModel):
     active_backlogs: int = 0
     history_of_backlogs: int = 0
     skills: List[str] = []
-    certifications: List[str] = []
+    certifications: List[Any] = []
     projects: List[Dict[str, Any]] = []
     aptitude_score: float = 0.0
     mock_interview_score: float = 0.0
@@ -40,7 +40,7 @@ class StudentUpdate(BaseModel):
     active_backlogs: Optional[int] = None
     history_of_backlogs: Optional[int] = None
     skills: Optional[List[str]] = None
-    certifications: Optional[List[str]] = None
+    certifications: Optional[List[Any]] = None
     projects: Optional[List[Dict[str, Any]]] = None
     primary_domain: Optional[str] = None
     resume_url: Optional[str] = None

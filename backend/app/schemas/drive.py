@@ -25,6 +25,7 @@ class DriveBase(BaseModel):
     min_tenth_percentage: Optional[float] = 60.0
     min_twelfth_percentage: Optional[float] = 60.0
     batch_year: Optional[int] = 2026
+    company_rating: Optional[float] = 4.5
     rounds: Optional[List[dict]] = []
 
 class DriveCreate(DriveBase):
@@ -51,6 +52,7 @@ class DriveUpdate(BaseModel):
     min_tenth_percentage: Optional[float] = None
     min_twelfth_percentage: Optional[float] = None
     batch_year: Optional[int] = None
+    company_rating: Optional[float] = None
     rounds: Optional[List[dict]] = None
     status: Optional[DriveStatus] = None
 

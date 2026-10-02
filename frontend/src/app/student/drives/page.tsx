@@ -7,7 +7,7 @@ export default function StudentDrivesPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard/student");
+    router.replace("/dashboard/student?tab=drives");
   }, [router]);
 
   return (

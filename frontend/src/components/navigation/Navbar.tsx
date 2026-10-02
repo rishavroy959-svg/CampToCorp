@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth, PRESET_PERSONAS, ACTIVE_ROLES } from "@/lib/auth-context";
 import { UserRole } from "@/types";
 import {
@@ -16,6 +16,83 @@ import {
   Sparkles,
   Bell,
 } from "lucide-react";
+
+function StudentNavLinks({ pathname }: { pathname: string }) {
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab") || "overview";
+  const isStudentDashboard = pathname === "/dashboard/student";
+
+  const isOverview = isStudentDashboard && currentTab === "overview";
+  const isDrives = (isStudentDashboard && currentTab === "drives") || pathname === "/student/drives";
+  const isApplications = (isStudentDashboard && (currentTab === "applications" || currentTab === "offers")) || pathname === "/student/applications";
+  const isMockInterview = pathname === "/student/mock-interview";
+
+  return (
+    <>
+      <Link
+        href="/dashboard/student?tab=overview"
+        className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+          isOverview
+            ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+            : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+        }`}
+      >
+        <span>My Readiness</span>
+        <span
+          className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+            isOverview ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+          }`}
+        />
+      </Link>
+      <Link
+        href="/dashboard/student?tab=drives"
+        className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+          isDrives
+            ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+            : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+        }`}
+      >
+        <span>Eligible Drives</span>
+        <span
+          className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+            isDrives ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+          }`}
+        />
+      </Link>
+      <Link
+        href="/dashboard/student?tab=applications"
+        className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+          isApplications
+            ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+            : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+        }`}
+      >
+        <span>Offers & Status</span>
+        <span
+          className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+            isApplications ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+          }`}
+        />
+      </Link>
+      <Link
+        href="/student/mock-interview"
+        className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center gap-1.5 cursor-pointer ${
+          isMockInterview
+            ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+            : "text-indigo-600 font-semibold hover:bg-indigo-50/60"
+        }`}
+      >
+        <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-spin group-hover:scale-110 transition-transform" style={{ animationDuration: '6s' }} />
+        <span>AI Mentor</span>
+        <span
+          className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+            isMockInterview ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+          }`}
+        />
+      </Link>
+    </>
+  );
+}
 
 export const Navbar: React.FC = () => {
   const { user, switchRole, logout } = useAuth();
@@ -67,93 +144,125 @@ export const Navbar: React.FC = () => {
   const currentMeta = roleMeta[currentRole];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-campus-border px-6 py-3.5">
+    <header className="sticky top-0 z-50 glass-navbar px-6 py-3.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Brand */}
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-campus-primary flex items-center justify-center text-white font-bold text-base shadow-xs">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform">
               C
             </div>
-            <div className="flex items-center">
-              <span className="text-lg font-bold tracking-tight text-campus-primary">CampusLink</span>
-              <span className="text-[10px] ml-2 px-1.5 py-0.5 rounded-full bg-slate-100 text-campus-text-secondary font-medium border border-campus-border">
-                CampToCorp
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-800">
+                CampusLink
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200/80 flex items-center gap-1 shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                AI Active
               </span>
             </div>
           </Link>
 
           {/* Role-specific Navigation Links */}
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-campus-text-secondary">
+          <nav className="hidden md:flex items-center gap-2 text-sm font-medium text-slate-600">
             {currentRole === "PLACEMENT_OFFICER" && (
               <>
                 <Link
                   href="/dashboard/tpo"
-                  className={`hover:text-campus-primary transition-colors ${
-                    pathname === "/dashboard/tpo" ? "text-campus-primary font-semibold" : ""
+                  className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+                    pathname === "/dashboard/tpo"
+                      ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
                   }`}
                 >
-                  Command Center
+                  <span>Command Center</span>
+                  <span
+                    className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                      pathname === "/dashboard/tpo" ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}
+                  />
                 </Link>
                 <Link
                   href="/drives"
-                  className={`hover:text-campus-primary transition-colors ${
-                    pathname.startsWith("/drives") ? "text-campus-primary font-semibold" : ""
+                  className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+                    pathname.startsWith("/drives")
+                      ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
                   }`}
                 >
-                  Drives & Schedule
+                  <span>Drives & Schedule</span>
+                  <span
+                    className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                      pathname.startsWith("/drives") ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}
+                  />
                 </Link>
                 <Link
                   href="/matching"
-                  className={`hover:text-campus-primary transition-colors ${
-                    pathname === "/matching" ? "text-campus-primary font-semibold" : ""
+                  className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+                    pathname === "/matching"
+                      ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
                   }`}
                 >
-                  AI Shortlisting
+                  <span>AI Shortlisting</span>
+                  <span
+                    className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                      pathname === "/matching" ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}
+                  />
                 </Link>
                 <Link
                   href="/analytics"
-                  className={`hover:text-campus-primary transition-colors ${
-                    pathname === "/analytics" ? "text-campus-primary font-semibold" : ""
+                  className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center cursor-pointer ${
+                    pathname === "/analytics"
+                      ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
                   }`}
                 >
-                  Analytics & At-Risk
+                  <span>Analytics & At-Risk</span>
+                  <span
+                    className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                      pathname === "/analytics" ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}
+                  />
                 </Link>
               </>
             )}
 
             {currentRole === "STUDENT" && (
-              <>
-                <Link
-                  href="/dashboard/student"
-                  className={`hover:text-campus-primary transition-colors ${
-                    pathname === "/dashboard/student" ? "text-campus-primary font-semibold" : ""
-                  }`}
-                >
-                  My Readiness
-                </Link>
-                <Link
-                  href="/student/drives"
-                  className="hover:text-campus-primary transition-colors"
-                >
-                  Eligible Drives
-                </Link>
-                <Link
-                  href="/student/applications"
-                  className="hover:text-campus-primary transition-colors"
-                >
-                  Offers & Status
-                </Link>
-              </>
+              <Suspense
+                fallback={
+                  <>
+                    <Link href="/dashboard/student?tab=overview" className="group relative px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 transition-all duration-200 hover:-translate-y-0.5">
+                      <span>My Readiness</span>
+                      <span className="absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-indigo-600 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-center" />
+                    </Link>
+                    <Link href="/dashboard/student?tab=drives" className="group relative px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 transition-all duration-200 hover:-translate-y-0.5">
+                      <span>Eligible Drives</span>
+                      <span className="absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-indigo-600 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-center" />
+                    </Link>
+                    <Link href="/dashboard/student?tab=applications" className="group relative px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 transition-all duration-200 hover:-translate-y-0.5">
+                      <span>Offers & Status</span>
+                      <span className="absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-indigo-600 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-center" />
+                    </Link>
+                    <Link href="/student/mock-interview" className="group relative px-3 py-1.5 rounded-lg text-indigo-600 font-semibold transition-all duration-200 hover:-translate-y-0.5">
+                      <span>AI Mentor</span>
+                      <span className="absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-indigo-600 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-center" />
+                    </Link>
+                  </>
+                }
+              >
+                <StudentNavLinks pathname={pathname} />
+              </Suspense>
             )}
-
-
 
             <Link
               href="/design-system"
-              className="hover:text-campus-primary transition-colors text-campus-accent font-medium text-xs border border-campus-border rounded-md px-2 py-0.5"
+              className="group relative text-xs text-slate-600 hover:text-indigo-600 transition-all duration-200 border border-slate-200 hover:border-indigo-300 hover:-translate-y-0.5 hover:shadow-xs rounded-lg px-2.5 py-1 inline-flex items-center cursor-pointer"
             >
-              Design Tokens
+              <span>Design Tokens</span>
+              <span className="absolute bottom-0.5 left-2 right-2 h-[1.5px] bg-indigo-600 rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-center" />
             </Link>
           </nav>
         </div>

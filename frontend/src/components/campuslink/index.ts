@@ -4,3 +4,5 @@ export * from "./ExplainabilityCard";
 export * from "./StatusPill";
 export * from "./KPICard";
 export * from "./Button";
+export * from "./PlacementCalendar";
+export * from "./CompanyLogo";

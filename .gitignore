@@ -36,3 +36,12 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+uploads/
+
+# Scratch files
+scratch_*.py
+scratch/

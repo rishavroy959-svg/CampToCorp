@@ -6,6 +6,7 @@ import {
   KPICard,
   StatusPill,
   Button,
+  CompanyLogo,
 } from "@/components/campuslink";
 import {
   GraduationCap,
@@ -43,6 +44,8 @@ import {
   Square,
   HelpCircle,
   Eye,
+  Star,
+  Flame,
 } from "lucide-react";
 
 interface StudentRecord {
@@ -84,6 +87,8 @@ interface DriveRecord {
   has_conflict: boolean;
   conflict_summary?: string;
   interview_panels_count?: number;
+  company_rating?: number;
+  required_skills?: string[];
 }
 
 interface ApplicationRecord {
@@ -236,8 +241,17 @@ export default function TPODashboardPage() {
   const [wizardDeadline, setWizardDeadline] = useState("2026-10-20");
   const [wizardBranches, setWizardBranches] = useState<string[]>(["CSE", "IT", "ECE"]);
   const [wizardSkills, setWizardSkills] = useState<string>("Python, Docker, SQL, Git");
+  const [wizardRating, setWizardRating] = useState<string>("4.5");
   const [wizardSubmitting, setWizardSubmitting] = useState(false);
   const [wizardMsg, setWizardMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Quick Edit Rating / Schedule State (Placement Officer only)
+  const [quickEditDrive, setQuickEditDrive] = useState<any | null>(null);
+  const [quickEditRating, setQuickEditRating] = useState("4.5");
+  const [quickEditDate, setQuickEditDate] = useState("");
+  const [quickEditSkills, setQuickEditSkills] = useState("");
+  const [quickEditVenue, setQuickEditVenue] = useState("");
+  const [quickEditLoading, setQuickEditLoading] = useState(false);
 
   // Round Advance Form State
   const [roundStatus, setRoundStatus] = useState("SHORTLISTED");
@@ -372,6 +386,7 @@ export default function TPODashboardPage() {
         venue: wizardVenue,
         interview_panels_count: parseInt(wizardPanels, 10) || 3,
         required_skills: skillsArray,
+        company_rating: parseFloat(wizardRating) || 4.5,
       };
 
       const res = await fetch("http://127.0.0.1:8000/api/v1/drives/", {
@@ -614,6 +629,41 @@ export default function TPODashboardPage() {
       }
     } catch (err) {
       alert("Failed to reschedule drive.");
+    }
+  };
+
+  // Quick Edit Drive Rating, Date & Skills (Placement Officer Only)
+  const handleQuickEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickEditDrive) return;
+    setQuickEditLoading(true);
+    try {
+      const skillsArray = quickEditSkills.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/drives/${quickEditDrive.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer mock-jwt-token-campuslink",
+        },
+        body: JSON.stringify({
+          drive_date: quickEditDate || quickEditDrive.drive_date,
+          company_rating: parseFloat(quickEditRating) || 4.5,
+          required_skills: skillsArray,
+          venue: quickEditVenue || quickEditDrive.venue,
+        }),
+      });
+      if (res.ok) {
+        setQuickEditDrive(null);
+        await fetchData();
+        alert("Drive schedule, company rating, and required skills updated! Changes are live on student placement calendars.");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Failed to update drive.");
+      }
+    } catch {
+      alert("Network error while updating drive.");
+    } finally {
+      setQuickEditLoading(false);
     }
   };
 
@@ -1071,6 +1121,21 @@ export default function TPODashboardPage() {
                       className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-medium"
                     />
                   </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Company Rating (1.0–5.0 ⭐, Glassdoor/Alumni)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1.0"
+                      max="5.0"
+                      value={wizardRating}
+                      onChange={(e) => setWizardRating(e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-medium"
+                      required
+                    />
+                  </div>
                 </div>
 
                 {/* Job Description & Auto-Parse */}
@@ -1444,7 +1509,10 @@ export default function TPODashboardPage() {
                             <div className="text-[10px] text-slate-400">{app.student_email}</div>
                           </td>
                           <td className="py-3 px-2">
-                            <div className="font-semibold text-slate-800">{app.company_name}</div>
+                            <div className="flex items-center gap-2">
+                              <CompanyLogo companyName={app.company_name} size="xs" className="rounded-md shrink-0" />
+                              <div className="font-semibold text-slate-800">{app.company_name}</div>
+                            </div>
                             <div className="text-[11px] text-slate-500">{app.role_title}</div>
                             <div className="text-[10px] font-bold text-campus-primary">{app.ctc_lpa} LPA</div>
                           </td>
@@ -1559,20 +1627,26 @@ export default function TPODashboardPage() {
                     }`}
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2.5">
-                          <h4 className="text-base font-bold text-campus-text-primary">{drive.company_name}</h4>
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                            {drive.role_title}
-                          </span>
-                          <span className="text-xs font-bold text-campus-primary">{drive.ctc_lpa} LPA</span>
-                          <StatusPill
-                            label={drive.status}
-                            variant={drive.status === "ACTIVE" ? "success" : "primary"}
-                          />
-                        </div>
+                      <div className="flex items-center gap-3">
+                        <CompanyLogo companyName={drive.company_name} size="md" className="rounded-xl shrink-0" />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2.5">
+                            <h4 className="text-base font-bold text-campus-text-primary">{drive.company_name}</h4>
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              {drive.role_title}
+                            </span>
+                            <span className="text-xs font-bold text-campus-primary">{drive.ctc_lpa} LPA</span>
+                            <span className="flex items-center gap-1 text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                              <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                              {drive.company_rating || 4.5} ⭐
+                            </span>
+                            <StatusPill
+                              label={drive.status}
+                              variant={drive.status === "ACTIVE" ? "success" : "primary"}
+                            />
+                          </div>
 
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-campus-text-secondary pt-1">
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-campus-text-secondary pt-1">
                           <span className="flex items-center gap-1 font-semibold text-slate-700">
                             <Calendar className="w-3.5 h-3.5 text-campus-primary" />
                             Date: {drive.drive_date}
@@ -1596,8 +1670,22 @@ export default function TPODashboardPage() {
                           </div>
                         )}
                       </div>
+                    </div>
 
                       <div className="flex items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setQuickEditDrive(drive);
+                            setQuickEditRating(drive.company_rating ? drive.company_rating.toString() : "4.5");
+                            setQuickEditDate(drive.drive_date);
+                            setQuickEditSkills(drive.required_skills ? drive.required_skills.join(", ") : "");
+                            setQuickEditVenue(drive.venue);
+                          }}
+                        >
+                          Edit Rating / Schedule
+                        </Button>
                         {drive.has_conflict ? (
                           <Button
                             variant="primary"
@@ -1711,7 +1799,10 @@ export default function TPODashboardPage() {
                             </div>
                           </td>
                           <td className="py-3 px-2">
-                            <div className="font-semibold text-slate-800">{offer.company_name}</div>
+                            <div className="flex items-center gap-2">
+                              <CompanyLogo companyName={offer.company_name} size="xs" className="rounded-md shrink-0" />
+                              <div className="font-semibold text-slate-800">{offer.company_name}</div>
+                            </div>
                             <div className="text-[11px] text-slate-500">{offer.role_title}</div>
                             {offer.is_ppo && (
                               <span className="inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-800">
@@ -2421,6 +2512,105 @@ export default function TPODashboardPage() {
                   </Button>
                   <Button variant="primary" size="sm" type="submit">
                     Confirm Rescheduling
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: QUICK EDIT DRIVE SCHEDULE, RATING & SKILLS (TPO ONLY) */}
+        {/* ========================================================================= */}
+        {quickEditDrive && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+            <div className="card-squarespace max-w-lg w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-campus-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <h3 className="text-base font-bold text-campus-text-primary">
+                    Update Drive & Company Rating: {quickEditDrive.company_name}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setQuickEditDrive(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleQuickEditSave} className="space-y-4 text-xs">
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed">
+                  <span className="font-bold">🔒 Placement Officer Privilege:</span> Modifying drive date, company rating, or required skills directly recalibrates the student placement calendar and skill gap analysis in real-time.
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Company Rating (1.0–5.0 ⭐) *</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="1.0"
+                      max="5.0"
+                      value={quickEditRating}
+                      onChange={(e) => setQuickEditRating(e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-campus-border font-bold text-xs"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Drive Date *</label>
+                    <input
+                      type="date"
+                      value={quickEditDate}
+                      onChange={(e) => setQuickEditDate(e.target.value)}
+                      className="w-full p-2.5 rounded-lg border border-campus-border text-xs font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Assigned Venue</label>
+                  <input
+                    type="text"
+                    value={quickEditVenue}
+                    onChange={(e) => setQuickEditVenue(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-campus-border text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Required Skills (Comma-separated — drives student skill gap radar)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={quickEditSkills}
+                    onChange={(e) => setQuickEditSkills(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-campus-border text-xs"
+                    placeholder="e.g. Python, Docker, PostgreSQL, System Design"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-campus-border">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={() => setQuickEditDrive(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="submit"
+                    disabled={quickEditLoading}
+                  >
+                    {quickEditLoading ? "Updating..." : "Save & Publish Changes"}
                   </Button>
                 </div>
               </form>

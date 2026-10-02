@@ -6,6 +6,7 @@ import {
   StatusPill,
   Button,
   KPICard,
+  CompanyLogo,
 } from "@/components/campuslink";
 import {
   Calendar,
@@ -427,15 +428,11 @@ export default function DrivesPage() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                   {/* Left: Company & Timing */}
                   <div className="flex items-start gap-4">
-                    <div
-                      className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-base shadow-xs ${
-                        d.hasConflict
-                          ? "bg-rose-100 text-rose-700 border border-rose-200"
-                          : "bg-slate-100 text-campus-primary border border-slate-200"
-                      }`}
-                    >
-                      {d.companyName[0]}
-                    </div>
+                    <CompanyLogo
+                      companyName={d.companyName}
+                      size="lg"
+                      className="rounded-xl shrink-0"
+                    />
 
                     <div>
                       <div className="flex items-center gap-3">

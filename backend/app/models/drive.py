@@ -64,6 +64,7 @@ class Drive(Base):
     min_tenth_percentage = Column(Float, default=60.0)
     min_twelfth_percentage = Column(Float, default=60.0)
     batch_year = Column(Integer, default=2026)
+    company_rating = Column(Float, default=4.5, nullable=True)
     rounds = Column(JSON, default=list)  # list of rounds
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

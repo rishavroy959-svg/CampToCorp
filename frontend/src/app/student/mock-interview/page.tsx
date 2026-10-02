@@ -100,50 +100,60 @@ export default function MockInterviewDiagnosticPage() {
   };
 
   return (
-    <div className="min-h-screen bg-campus-bg py-8 px-6">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-campus-border pb-6">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-campus-text-secondary uppercase tracking-wider mb-1">
-              <Bot className="w-4 h-4 text-campus-primary" />
-              <span>AI Career Preparation</span>
-              <span>/</span>
-              <span>Mock Interview & Resume Skill Diagnostic (PRD Module B)</span>
-            </div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-campus-text-primary">
-              AI Technical Interview Diagnostic
-            </h1>
-            <p className="text-sm text-campus-text-secondary mt-1">
-              Simulate role-specific technical rounds, evaluate architectural depth, and boost your Employability Readiness Index.
-            </p>
-          </div>
+    <div className="min-h-screen bg-slate-50/70 py-8 px-4 sm:px-6 relative overflow-hidden">
+      {/* Background Ambient Glows */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse-subtle" />
+        <div className="absolute top-72 right-10 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse-subtle" style={{ animationDelay: "1.5s" }} />
+      </div>
 
-          <Link href="/dashboard/student">
-            <Button variant="secondary" size="md">
-              &larr; Back to Readiness Portal
-            </Button>
-          </Link>
+      <div className="max-w-7xl mx-auto space-y-6 relative z-10">
+        {/* Top Header Card */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 sm:p-7 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-indigo-600 via-violet-600 to-cyan-500" />
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wider mb-1">
+                <Bot className="w-4 h-4 text-indigo-600" />
+                <span>AI Career Preparation</span>
+                <span>/</span>
+                <span>Mock Interview & Resume Skill Diagnostic</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
+                AI Technical Interview Diagnostic
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Simulate role-specific technical rounds, evaluate architectural depth, and boost your Employability Readiness Index.
+              </p>
+            </div>
+
+            <Link
+              href="/dashboard/student"
+              className="px-4 py-2.5 rounded-xl border border-slate-200/90 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs shadow-2xs transition-all flex items-center gap-1.5 self-start sm:self-auto"
+            >
+              <span>&larr; Back to Readiness Portal</span>
+            </Link>
+          </div>
         </div>
 
         {/* Target Requisition Selector */}
-        <div className="card-squarespace p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-campus-primary/10 flex items-center justify-center text-campus-primary font-bold">
+        <div className="rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-black text-xl flex items-center justify-center shadow-md shadow-indigo-500/25 shrink-0">
               G
             </div>
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider text-campus-text-secondary">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
                 Simulating Campus Placement Drive
               </div>
-              <div className="text-base font-bold text-campus-text-primary">
+              <div className="text-base font-black text-slate-900">
                 Google Cloud &bull; Site Reliability Engineer (32.0 LPA)
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-campus-text-secondary font-medium">Select Question:</span>
+            <span className="text-xs text-slate-500 font-semibold">Select Question:</span>
             {questions.map((q, idx) => (
               <button
                 key={q.id}
@@ -152,9 +162,9 @@ export default function MockInterviewDiagnosticPage() {
                   setUserAnswer(questions[idx].sampleAnswer);
                   setEvaluationResult(null);
                 }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   selectedQuestionIndex === idx
-                    ? "bg-campus-primary text-white"
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-sm shadow-indigo-500/25"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                 }`}
               >
@@ -167,27 +177,27 @@ export default function MockInterviewDiagnosticPage() {
         {/* Main Diagnostic Area */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Question & Answer Box */}
-          <div className="card-squarespace p-6 space-y-5 lg:col-span-2">
+          <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 space-y-5 lg:col-span-2 shadow-xs">
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 uppercase tracking-wider">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase tracking-wider">
                   {currentQ.type}
                 </span>
-                <span className="text-xs text-campus-text-secondary">
+                <span className="text-xs text-slate-400 font-medium">
                   Question {selectedQuestionIndex + 1} of {questions.length}
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-campus-text-primary leading-snug">
+              <h2 className="text-lg font-black text-slate-900 leading-snug">
                 {currentQ.question}
               </h2>
             </div>
 
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs">
-                <label className="font-semibold text-campus-text-primary">
+                <label className="font-bold text-slate-800">
                   Your Technical Response:
                 </label>
-                <span className="text-campus-text-secondary font-mono">
+                <span className="text-slate-400 font-mono font-medium">
                   {userAnswer.split(/\s+/).filter(Boolean).length} words
                 </span>
               </div>
@@ -197,7 +207,7 @@ export default function MockInterviewDiagnosticPage() {
                 value={userAnswer}
                 onChange={(e) => setUserAnswer(e.target.value)}
                 placeholder="Type your structured technical explanation here..."
-                className="w-full p-3.5 rounded-xl border border-campus-border text-xs leading-relaxed focus:ring-2 focus:ring-campus-accent/30 focus:border-campus-accent"
+                className="w-full p-4 rounded-2xl border border-slate-200/90 bg-slate-50/60 focus:bg-white text-xs leading-relaxed focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all outline-none"
               />
             </div>
 
@@ -205,56 +215,56 @@ export default function MockInterviewDiagnosticPage() {
               <button
                 type="button"
                 onClick={() => setUserAnswer(currentQ.sampleAnswer)}
-                className="text-xs text-campus-accent hover:underline flex items-center gap-1 font-medium cursor-pointer"
+                className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-bold cursor-pointer"
               >
                 <Lightbulb className="w-3.5 h-3.5" />
-                Fill Suggested Answer
+                <span>Fill Suggested Answer</span>
               </button>
 
-              <Button
-                variant="primary"
-                size="md"
+              <button
+                type="button"
                 onClick={handleEvaluateAnswer}
                 disabled={isEvaluating || !userAnswer.trim()}
-                icon={<Sparkles className="w-4 h-4" />}
+                className="btn-gradient text-xs py-2.5 px-5 font-bold shadow-md hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                {isEvaluating ? "Analyzing Technical Depth..." : "Evaluate with AI Engine"}
-              </Button>
+                <Sparkles className="w-4 h-4" />
+                <span>{isEvaluating ? "Analyzing Technical Depth..." : "Evaluate with AI Engine"}</span>
+              </button>
             </div>
           </div>
 
           {/* Quick Readiness Score Impact Preview */}
-          <div className="card-squarespace p-6 flex flex-col justify-between space-y-4">
+          <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 flex flex-col justify-between space-y-4 shadow-xs">
             <div>
-              <h3 className="text-base font-bold text-campus-text-primary mb-1">
+              <h3 className="text-base font-black text-slate-900 mb-1">
                 Readiness Score Impact
               </h3>
-              <p className="text-xs text-campus-text-secondary mb-4">
+              <p className="text-xs text-slate-500 mb-4">
                 Mock interview evaluations contribute 15% to your overall campus readiness index.
               </p>
 
-              <div className="p-4 rounded-xl bg-slate-50 border border-campus-border space-y-3">
+              <div className="p-4 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3">
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-600">Current Mock Score:</span>
-                  <span className="font-bold text-campus-primary">85 / 100</span>
+                  <span className="text-slate-600 font-medium">Current Mock Score:</span>
+                  <span className="font-bold text-indigo-700">85 / 100</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-slate-600">Predicted Score:</span>
-                  <span className="font-bold text-emerald-600">
-                    {evaluationResult ? "90.4 / 100 (+5.4)" : "Evaluating..."}
+                  <span className="text-slate-600 font-medium">Predicted Score:</span>
+                  <span className="font-black text-emerald-600">
+                    {evaluationResult ? "90.4 / 100 (+5.4)" : "Awaiting Evaluation..."}
                   </span>
                 </div>
-                <div className="flex justify-between text-xs border-t border-slate-200 pt-2">
-                  <span className="font-semibold text-slate-800">Target Employability:</span>
-                  <span className="font-bold text-emerald-700">Tier 1 (Super Dream)</span>
+                <div className="flex justify-between text-xs border-t border-slate-200 pt-2.5">
+                  <span className="font-bold text-slate-800">Target Employability:</span>
+                  <span className="font-black text-emerald-700">Tier 1 (Super Dream)</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200 text-xs text-blue-900 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-              <span>
-                Demonstrating clear system failure recovery boosts your recruiter shortlisting probability by <span className="font-bold">28%</span>.
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/60 border border-blue-200/80 text-xs text-blue-900 flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+              <span className="leading-relaxed">
+                Demonstrating clear system failure recovery boosts your recruiter shortlisting probability by <strong className="font-bold text-indigo-900">28%</strong>.
               </span>
             </div>
           </div>
@@ -262,28 +272,29 @@ export default function MockInterviewDiagnosticPage() {
 
         {/* AI Evaluation Result Card */}
         {evaluationResult && (
-          <div className="card-squarespace p-6 space-y-6 border border-emerald-300 bg-emerald-50/15 animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-200/80 pb-4">
+          <div className="rounded-3xl p-6 sm:p-7 space-y-6 border-2 border-emerald-300/80 bg-gradient-to-br from-emerald-50/30 via-white to-teal-50/20 shadow-md animate-fade-in relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-emerald-100/90 pb-4 pt-1">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                  <Award className="w-5 h-5" />
+                <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shadow-2xs">
+                  <Award className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-campus-text-primary">
+                  <h3 className="text-xl font-black text-slate-900">
                     AI Diagnostic Evaluation: Passed (Senior Benchmark)
                   </h3>
-                  <span className="text-xs text-emerald-700 font-semibold">
+                  <span className="text-xs text-emerald-800 font-bold">
                     Overall Interview Rating: {evaluationResult.overallScore}% ({evaluationResult.readinessDelta})
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 text-xs font-semibold">
-                <div className="px-3 py-1 rounded-full bg-white border border-slate-200">
-                  Technical Depth: <span className="text-campus-primary font-bold">{evaluationResult.technicalScore}%</span>
+              <div className="flex items-center gap-3 text-xs font-bold">
+                <div className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                  Technical Depth: <span className="text-indigo-600 font-black">{evaluationResult.technicalScore}%</span>
                 </div>
-                <div className="px-3 py-1 rounded-full bg-white border border-slate-200">
-                  Communication: <span className="text-emerald-700 font-bold">{evaluationResult.communicationScore}%</span>
+                <div className="px-3.5 py-1.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs">
+                  Communication: <span className="text-emerald-700 font-black">{evaluationResult.communicationScore}%</span>
                 </div>
               </div>
             </div>
@@ -328,44 +339,46 @@ export default function MockInterviewDiagnosticPage() {
         )}
 
         {/* Section 2: AI Resume Skill Extractor & Point Booster */}
-        <div className="card-squarespace p-6 space-y-5">
-          <div className="flex items-center gap-2 border-b border-campus-border pb-3">
-            <FileText className="w-5 h-5 text-campus-primary" />
+        <div className="rounded-3xl border border-slate-200/90 bg-white/95 backdrop-blur-xl p-6 sm:p-7 space-y-5 shadow-xs">
+          <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+              <FileText className="w-5 h-5" />
+            </div>
             <div>
-              <h3 className="text-lg font-bold text-campus-text-primary">
-                AI Resume Parser & Skill Extractor (PRD FR-B1)
+              <h3 className="text-lg font-black text-slate-900">
+                AI Resume Parser & Skill Extractor
               </h3>
-              <p className="text-xs text-campus-text-secondary">
+              <p className="text-xs text-slate-500">
                 Instantly extract verified technical entities and calculate employability readiness points.
               </p>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-semibold text-campus-text-primary">
+            <label className="block text-xs font-bold text-slate-800">
               Resume Plaintext Content:
             </label>
             <textarea
               rows={4}
               value={resumeText}
               onChange={(e) => setResumeText(e.target.value)}
-              className="w-full p-3 rounded-xl border border-campus-border text-xs font-mono"
+              className="w-full p-3.5 rounded-2xl border border-slate-200/90 bg-slate-50/60 focus:bg-white text-xs font-mono focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 outline-none transition-all"
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-campus-text-secondary">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <span className="text-xs text-slate-500">
               Parses against 100+ technology ontology families (Languages, DevOps, Databases, Cloud).
             </span>
 
-            <Button
-              variant="primary"
-              size="sm"
+            <button
+              type="button"
               onClick={handleParseResume}
-              icon={<Sparkles className="w-4 h-4" />}
+              className="btn-gradient text-xs py-2 px-5 font-bold shadow-md hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
             >
-              Extract Skills & Boost Score
-            </Button>
+              <Sparkles className="w-4 h-4" />
+              <span>Extract Skills & Boost Score</span>
+            </button>
           </div>
 
           {parsedSkillsResult && (

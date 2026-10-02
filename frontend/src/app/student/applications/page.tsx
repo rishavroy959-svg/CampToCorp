@@ -7,7 +7,7 @@ export default function StudentApplicationsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard/student");
+    router.replace("/dashboard/student?tab=applications");
   }, [router]);
 
   return (

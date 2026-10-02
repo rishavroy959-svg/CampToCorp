@@ -1,5 +1,8 @@
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+import uuid
+import shutil
+from typing import List, Optional, Any
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db, Base, engine
@@ -7,6 +10,9 @@ from app.models.student import Student, ReadinessTier, StudentStatus
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
 from app.api.deps import get_current_user, require_role
 from app.models.user import User, UserRole
+
+CERT_UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "uploads", "certificates"))
+os.makedirs(CERT_UPLOAD_DIR, exist_ok=True)
 
 router = APIRouter(prefix="/students", tags=["Students"])
 
@@ -188,6 +194,43 @@ def update_student_resume(
     db.commit()
     db.refresh(student)
     return student
+
+@router.post("/{student_id}/certificate/upload")
+async def upload_certificate_file(
+    student_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload and attach a verified certificate proof document (PDF, PNG, JPG)."""
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
+    if ext not in [".pdf", ".png", ".jpg", ".jpeg", ".webp"]:
+        raise HTTPException(status_code=400, detail="Only PDF, PNG, JPG, or JPEG certificate files are supported.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit.")
+
+    clean_orig_name = "".join(c for c in (file.filename or "cert") if c.isalnum() or c in "._- ")
+    unique_name = f"cert_{student_id}_{uuid.uuid4().hex[:8]}_{clean_orig_name}"
+    file_path = os.path.join(CERT_UPLOAD_DIR, unique_name)
+
+    with open(file_path, "wb") as f:
+        f.write(file_bytes)
+
+    relative_url = f"/uploads/certificates/{unique_name}"
+    full_url = f"http://127.0.0.1:8000{relative_url}"
+
+    return {
+        "file_name": file.filename,
+        "file_url": full_url,
+        "relative_url": relative_url,
+        "file_size": len(file_bytes),
+        "content_type": file.content_type,
+    }
 
 @router.post("/purge-demo-data")
 def purge_demo_data_endpoint(db: Session = Depends(get_db)):

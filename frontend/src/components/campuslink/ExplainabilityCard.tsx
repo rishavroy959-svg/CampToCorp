@@ -28,25 +28,25 @@ export const ExplainabilityCard: React.FC<ExplainabilityCardProps> = ({
 }) => {
   return (
     <div
-      className={`rounded-xl border border-blue-200 bg-blue-50/60 p-4 transition-all ${className}`}
+      className={`rounded-2xl border border-indigo-200/90 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/50 p-5 shadow-xs transition-all ${className}`}
     >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-lg bg-blue-600/10 p-1.5 text-blue-700">
+        <div className="mt-0.5 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 p-2 text-white shadow-sm shadow-indigo-500/20">
           <Sparkles className="h-4 w-4" />
         </div>
         <div className="flex-1">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-blue-950 flex items-center gap-1.5">
+            <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
               {title}
             </h4>
             {confidenceScore !== undefined && (
-              <span className="text-xs font-medium text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-100/80 px-2.5 py-0.5 rounded-full border border-indigo-200">
                 {Math.round(confidenceScore * 100)}% match confidence
               </span>
             )}
           </div>
 
-          <p className="mt-1 text-sm text-blue-900/90 leading-relaxed font-normal">
+          <p className="mt-1.5 text-xs text-slate-700 leading-relaxed font-normal">
             {explanation}
           </p>
 
