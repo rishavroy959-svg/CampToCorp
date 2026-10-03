@@ -171,56 +171,134 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
       const studentId = studentProfile?.id || (typeof window !== "undefined" ? parseInt(localStorage.getItem("campuslink_student_id") || "1") : 1);
       const activeKey = geminiApiKey || (typeof window !== "undefined" ? localStorage.getItem("campuslink_gemini_key") || "" : "");
 
-      const res = await fetch("http://127.0.0.1:8000/api/v1/chat/message", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          student_id: studentId,
-          message: text,
-          api_key: activeKey,
-          history: newMessages.slice(-6).map((m) => ({
-            sender: m.sender,
-            content: m.text,
-          })),
-        }),
-      });
+      // 1. Try sending message to local FastAPI backend
+      let backendSuccess = false;
+      try {
+        const res = await fetch("http://127.0.0.1:8000/api/v1/chat/message", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            student_id: studentId,
+            message: text,
+            api_key: activeKey,
+            history: newMessages.slice(-6).map((m) => ({
+              sender: m.sender,
+              content: m.text,
+            })),
+          }),
+        });
 
-      if (!res.ok) {
-        throw new Error(`Server returned ${res.status}`);
+        if (res.ok) {
+          const data = await res.json();
+          const botMessage: Message = {
+            id: `bot-${Date.now()}`,
+            sender: "bot",
+            text: data.reply,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            suggestedPrompts: data.suggested_prompts && data.suggested_prompts.length > 0 ? data.suggested_prompts : DEFAULT_PROMPTS,
+            actionRecommendations: data.action_recommendations || [],
+            readinessImpact: data.readiness_impact,
+            modelUsed: data.model_used || (activeKey ? "gemini-llm" : "campuslink-ai"),
+          };
+          setMessages((prev) => [...prev, botMessage]);
+          backendSuccess = true;
+        }
+      } catch (backendErr) {
+        console.warn("Backend server connection failed:", backendErr);
       }
 
-      const data = await res.json();
+      // 2. If backend failed but user provided a Gemini API Key, call Gemini API directly from browser
+      if (!backendSuccess && activeKey) {
+        const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemma-4-26b-a4b-it", "gemini-2.0-flash", "gemini-1.5-flash"];
+        let directReply: string | null = null;
+        let usedModel = "gemini-3.5-flash";
 
-      const botMessage: Message = {
-        id: `bot-${Date.now()}`,
-        sender: "bot",
-        text: data.reply,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        suggestedPrompts: data.suggested_prompts && data.suggested_prompts.length > 0 ? data.suggested_prompts : DEFAULT_PROMPTS,
-        actionRecommendations: data.action_recommendations || [],
-        readinessImpact: data.readiness_impact,
-        modelUsed: data.model_used || (activeKey ? "gemini-llm" : "campuslink-ai"),
-      };
+        for (const model of modelsToTry) {
+          try {
+            const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey.trim()}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                systemInstruction: {
+                  parts: [{
+                    text: `You are the CampusLink AI Placement & Technical Mentor. Answer any technical, coding, DBMS, OS, networking, placement, or career doubt asked by the student clearly and accurately in GitHub markdown format.`
+                  }]
+                },
+                contents: [
+                  ...newMessages.slice(-4).map((m) => ({
+                    role: m.sender === "user" ? "user" : "model",
+                    parts: [{ text: m.text }]
+                  })),
+                ],
+                generationConfig: {
+                  temperature: 0.7,
+                  maxOutputTokens: 1000
+                }
+              })
+            });
 
-      setMessages((prev) => [...prev, botMessage]);
+            if (geminiRes.ok) {
+              const geminiData = await geminiRes.json();
+              const replyText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (replyText) {
+                directReply = replyText.trim();
+                usedModel = model;
+                break;
+              }
+            } else {
+              const errBody = await geminiRes.text();
+              console.warn(`Direct browser Gemini ${model} failed (${geminiRes.status}):`, errBody);
+            }
+          } catch (gErr) {
+            console.warn(`Direct browser call error for ${model}:`, gErr);
+          }
+        }
+
+        if (directReply) {
+          const directBotMsg: Message = {
+            id: `bot-direct-${Date.now()}`,
+            sender: "bot",
+            text: directReply,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            suggestedPrompts: [
+              "Which campus drives am I eligible for?",
+              "Explain Deadlock 4 conditions in OS",
+              "How to answer 'Tell me about yourself'?"
+            ],
+            actionRecommendations: [
+              { title: "View Eligible Drives", action: "VIEW_DRIVES" },
+              { title: "AI Mock Interview", action: "START_MOCK_INTERVIEW" }
+            ],
+            modelUsed: usedModel,
+          };
+          setMessages((prev) => [...prev, directBotMsg]);
+          backendSuccess = true;
+        }
+      }
+
+      // 3. Fallback notice if neither backend nor direct Gemini responded
+      if (!backendSuccess) {
+        const errorNotice: Message = {
+          id: `bot-err-${Date.now()}`,
+          sender: "bot",
+          text: activeKey
+            ? `⚠️ **Backend Server Offline & Gemini API Error**\n\n- Unable to connect to backend at \`http://127.0.0.1:8000\`.\n- Direct Gemini API call returned an error. Please verify your Gemini API key by clicking the 🔑 icon above, or start your backend server.\n\n*Command to start backend:* \`uvicorn app.main:app --reload\``
+            : `⚠️ **Backend Server Offline**\n\nThe local backend server (\`http://127.0.0.1:8000\`) is currently not running.\n\n👉 **To get real-time live answers:**\n1. **Start the backend server:** Run \`uvicorn app.main:app --reload\` in your \`backend/\` folder.\n2. **OR Enter a Gemini API Key:** Click the **🔑 Key** icon in top-right of this chat to connect a free Google Gemini API Key for direct live browser responses!`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          suggestedPrompts: DEFAULT_PROMPTS,
+          actionRecommendations: [
+            { title: "Check Eligible Drives", action: "VIEW_DRIVES" },
+          ],
+          modelUsed: "notice",
+        };
+        setMessages((prev) => [...prev, errorNotice]);
+      }
+
       if (!isOpen) {
         setHasUnread(true);
       }
     } catch (err) {
-      console.warn("API request failed, applying local fallback:", err);
-      const fallbackMsg: Message = {
-        id: `bot-fallback-${Date.now()}`,
-        sender: "bot",
-        text: `### 💡 Placement & Technical Guidance\n\nRegarding: *"${text}"*\n\nFor technical interviews at companies like Google, AWS, and Microsoft:\n1. **Core Fundamentals:** Prepare OS (Deadlocks, Virtual Memory), DBMS (ACID, Normalization), and Networks (TCP/UDP, DNS).\n2. **DSA Mastery:** Practice problem patterns on Arrays, Trees, Graphs, and DP with clean time & space complexity defense.\n3. **Projects:** Ensure your projects have live deployment links and quantitative metrics.\n\n*Feel free to ask another question or connect a free Gemini API key in settings for live generative AI!*`,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        suggestedPrompts: DEFAULT_PROMPTS,
-        actionRecommendations: [
-          { title: "View Eligible Drives", action: "VIEW_DRIVES" },
-          { title: "AI Mock Interview", action: "START_MOCK_INTERVIEW" },
-        ],
-        modelUsed: "campuslink-ai",
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      console.error("Chat message error:", err);
     } finally {
       setIsLoading(false);
     }

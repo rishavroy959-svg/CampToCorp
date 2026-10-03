@@ -9,6 +9,7 @@ from app.models.student import Student, ReadinessTier, StudentStatus
 from app.models.drive import Drive, SlotType, DriveStatus, ConflictLog, ConflictType, ConflictSeverity
 from app.models.matching import StudentJobMatch
 from app.models.offer import Offer, OfferStatus
+import app.models
 from app.services.scheduler import check_drive_conflicts
 from app.services.ai_matching import calculate_composite_fit
 

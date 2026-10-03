@@ -16,66 +16,69 @@ logger = logging.getLogger("campuslink.chat")
 
 # Models to attempt in priority order
 GEMINI_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemma-4-26b-a4b-it",
+    "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-1.5-pro",
 ]
 
 async def call_gemini_api(api_key: str, system_prompt: str, user_prompt: str, history: List[Dict[str, str]]) -> Optional[str]:
-    """Call Google Gemini REST API with multi-model fallback."""
+    """Call Google Gemini REST API with multi-model fallback and strict role alternation."""
     if not api_key:
         return None
 
+    api_key_clean = api_key.strip()
     contents = []
-    
-    # Add system context as initial turn or guidance
-    contents.append({
-        "role": "user",
-        "parts": [{
-            "text": (
-                f"You are the CampusLink AI Placement & Technical Mentor.\n"
-                f"Your directive:\n{system_prompt}\n\n"
-                "You must answer ANY student question or doubt (technical, coding, computer science fundamentals, "
-                "interview questions, placement criteria, HR questions, or general queries in English or Hindi/Hinglish). "
-                "Provide clear, structured, encouraging, and accurate answers with markdown, bullet points, and code snippets when appropriate."
-            )
-        }]
-    })
-    contents.append({
-        "role": "model",
-        "parts": [{"text": "Understood! I am ready to resolve any placement, coding, or technical doubt with precision and depth."}]
-    })
 
-    # Add up to 6 recent conversation history turns
+    # Build clean history turns with strict alternating roles
+    last_role = None
     for turn in history[-6:]:
-        role = "user" if turn.get("sender") == "user" or turn.get("role") == "user" else "model"
-        text = turn.get("text") or turn.get("content", "")
+        raw_role = turn.get("sender") or turn.get("role")
+        role = "user" if raw_role == "user" else "model"
+        text = (turn.get("text") or turn.get("content") or "").strip()
         if text:
-            contents.append({
-                "role": role,
-                "parts": [{"text": text}]
-            })
+            if role == last_role:
+                if contents:
+                    contents[-1]["parts"][0]["text"] += f"\n{text}"
+            else:
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": text}]
+                })
+                last_role = role
 
-    # Add current question
+    if last_role == "user":
+        contents.append({
+            "role": "model",
+            "parts": [{"text": "Understood. Please go on."}]
+        })
+
     contents.append({
         "role": "user",
-        "parts": [{"text": user_prompt}]
+        "parts": [{"text": user_prompt.strip()}]
     })
 
-    async with httpx.AsyncClient(timeout=14.0) as client:
+    payload = {
+        "systemInstruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1200,
+        }
+    }
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
         for model in GEMINI_MODELS:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key.strip()}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key_clean}"
             try:
                 resp = await client.post(
                     url,
                     headers={"Content-Type": "application/json"},
-                    json={
-                        "contents": contents,
-                        "generationConfig": {
-                            "temperature": 0.5,
-                            "maxOutputTokens": 1000,
-                        }
-                    }
+                    json=payload
                 )
                 if resp.status_code == 200:
                     data = resp.json()
@@ -85,9 +88,9 @@ async def call_gemini_api(api_key: str, system_prompt: str, user_prompt: str, hi
                         if parts and "text" in parts[0]:
                             return parts[0]["text"].strip()
                 else:
-                    logger.warning(f"Gemini {model} returned HTTP {resp.status_code}: {resp.text[:120]}")
+                    logger.warning(f"Gemini model {model} HTTP {resp.status_code}: {resp.text[:200]}")
             except Exception as e:
-                logger.warning(f"Failed querying Gemini model {model}: {e}")
+                logger.warning(f"Error calling Gemini model {model}: {e}")
 
     return None
 
