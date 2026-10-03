@@ -49,6 +49,7 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   login: (role: UserRole) => void;
+  loginCustom: (userObj: AuthUser, token?: string) => void;
   logout: () => void;
   switchRole: (role: UserRole) => void;
   updateUser: (data: Partial<AuthUser>) => void;
@@ -59,49 +60,60 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // Default to Placement Officer for initial review, or read from localStorage
   const [user, setUser] = useState<AuthUser | null>(PRESET_PERSONAS.PLACEMENT_OFFICER);
   const [token, setToken] = useState<string | null>("mock-jwt-token-campuslink");
 
   useEffect(() => {
-    const savedRole = localStorage.getItem("campuslink_active_role") as UserRole | null;
-    const role = (savedRole && PRESET_PERSONAS[savedRole]) ? savedRole : "PLACEMENT_OFFICER";
-    
-    // Check if there is a custom profile override saved for this role
-    const savedOverride = localStorage.getItem(`campuslink_user_override_${role}`);
-    if (savedOverride) {
+    const savedCustomUser = typeof window !== "undefined" ? localStorage.getItem("campuslink_custom_user") : null;
+    if (savedCustomUser) {
       try {
-        setUser(JSON.parse(savedOverride));
+        const parsed = JSON.parse(savedCustomUser);
+        setUser(parsed);
+        const savedToken = localStorage.getItem("campuslink_jwt_token") || `jwt-token-${parsed.role.toLowerCase()}`;
+        setToken(savedToken);
         return;
       } catch (e) {}
     }
 
+    const savedRole = localStorage.getItem("campuslink_active_role") as UserRole | null;
+    const role = (savedRole && PRESET_PERSONAS[savedRole]) ? savedRole : "PLACEMENT_OFFICER";
+    
     if (PRESET_PERSONAS[role]) {
       setUser(PRESET_PERSONAS[role]);
     }
   }, []);
 
-  const login = (role: UserRole) => {
-    const savedOverride = typeof window !== "undefined" ? localStorage.getItem(`campuslink_user_override_${role}`) : null;
-    if (savedOverride) {
-      try {
-        setUser(JSON.parse(savedOverride));
-        setToken(`jwt-token-${role.toLowerCase()}`);
-        localStorage.setItem("campuslink_active_role", role);
-        return;
-      } catch (e) {}
+  const loginCustom = (userObj: AuthUser, jwtToken?: string) => {
+    setUser(userObj);
+    const activeToken = jwtToken || `jwt-token-${userObj.role.toLowerCase()}`;
+    setToken(activeToken);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("campuslink_custom_user", JSON.stringify(userObj));
+      localStorage.setItem("campuslink_active_role", userObj.role);
+      localStorage.setItem("campuslink_jwt_token", activeToken);
     }
+  };
 
+  const login = (role: UserRole) => {
     const selected = PRESET_PERSONAS[role];
     setUser(selected);
-    setToken(`jwt-token-${role.toLowerCase()}`);
-    localStorage.setItem("campuslink_active_role", role);
+    const activeToken = `jwt-token-${role.toLowerCase()}`;
+    setToken(activeToken);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("campuslink_active_role", role);
+      localStorage.setItem("campuslink_jwt_token", activeToken);
+      localStorage.removeItem("campuslink_custom_user");
+    }
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.removeItem("campuslink_active_role");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("campuslink_active_role");
+      localStorage.removeItem("campuslink_custom_user");
+      localStorage.removeItem("campuslink_jwt_token");
+    }
   };
 
   const switchRole = (role: UserRole) => {
@@ -113,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!prev) return null;
       const updated = { ...prev, ...data };
       if (typeof window !== "undefined") {
-        localStorage.setItem(`campuslink_user_override_${prev.role}`, JSON.stringify(updated));
+        localStorage.setItem("campuslink_custom_user", JSON.stringify(updated));
       }
       return updated;
     });
@@ -126,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         token,
         isAuthenticated: !!user,
         login,
+        loginCustom,
         logout,
         switchRole,
         updateUser,
