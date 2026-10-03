@@ -143,6 +143,30 @@ export const Navbar: React.FC = () => {
   const currentRole = user?.role || "PLACEMENT_OFFICER";
   const currentMeta = roleMeta[currentRole];
 
+  // Clean Header for Authentication Pages (Login/Register)
+  if (pathname?.startsWith("/auth")) {
+    return (
+      <header className="sticky top-0 z-50 glass-navbar px-6 py-3.5 shadow-xs bg-white/90 backdrop-blur-md border-b border-slate-200/80">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform">
+              C
+            </div>
+            <span className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-800">
+              CampusLink
+            </span>
+          </Link>
+          <Link
+            href="/"
+            className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-1.5 rounded-lg border border-indigo-200/80 transition-all"
+          >
+            ← Back to Home
+          </Link>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-50 glass-navbar px-6 py-3.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)]">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
