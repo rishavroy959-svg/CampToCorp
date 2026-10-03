@@ -6,7 +6,9 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2,
+  Shield,
   ShieldCheck,
+  GraduationCap,
   Users,
   Calendar,
   Zap,
@@ -237,29 +239,75 @@ export default function HomePage() {
             automated conflict-free drive scheduling, and 4-tier student employability analytics.
           </p>
 
-          {/* Hero Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link
-              href="/dashboard/tpo"
-              className="btn-gradient text-base px-8 py-3.5 w-full sm:w-auto shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 group"
-            >
-              <span>TPO Command Center</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link
-              href="/dashboard/student"
-              className="btn-secondary text-base px-8 py-3.5 w-full sm:w-auto border-slate-300 hover:border-indigo-400 hover:text-indigo-600 shadow-sm flex items-center justify-center gap-2"
-            >
-              <span>Student Career Super-App</span>
-              <Sparkles className="w-4 h-4 text-indigo-500" />
-            </Link>
-            <a
-              href="#interactive-demo"
-              className="text-xs font-bold text-slate-500 hover:text-indigo-600 px-4 py-2 transition-colors flex items-center gap-1.5"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-500" />
-              Try Live Matchmaker Below
-            </a>
+          {/* Dual Role Gateway Cards: Student & Institute Placement Officer */}
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto mb-14 text-left">
+            {/* Student Candidate Gateway Card */}
+            <div className="group relative bg-white/95 backdrop-blur-xl p-6 sm:p-7 rounded-3xl border border-emerald-200/90 shadow-lg shadow-emerald-500/5 hover:border-emerald-400 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600">
+                  <GraduationCap className="w-7 h-7" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                  Student Portal
+                </span>
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 mb-2 group-hover:text-emerald-700 transition-colors">
+                Student Candidate Portal
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                Access your personal employability readiness score (0–100), AI skill diagnostics, live eligible placement drives, and 24/7 AI Career Mentor.
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                <Link
+                  href="/auth/login?role=STUDENT"
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <span>Student Sign In</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/dashboard/student"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold border border-emerald-200 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <span>Enter Student Portal</span>
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Institute Placement Officer (TPO) Gateway Card */}
+            <div className="group relative bg-white/95 backdrop-blur-xl p-6 sm:p-7 rounded-3xl border border-indigo-200/90 shadow-lg shadow-indigo-500/5 hover:border-indigo-400 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="p-3 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600">
+                  <Shield className="w-7 h-7" />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-indigo-100 text-indigo-800">
+                  Institute TPO Portal
+                </span>
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 mb-2 group-hover:text-indigo-700 transition-colors">
+                Placement Officer (TPO) Portal
+              </h3>
+              <p className="text-xs text-slate-600 leading-relaxed mb-6">
+                Full placement command center, autonomous venue conflict resolution, explainable AI candidate shortlists, policy enforcement & student tracking.
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                <Link
+                  href="/auth/login?role=PLACEMENT_OFFICER"
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <span>TPO Officer Sign In</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+                <Link
+                  href="/dashboard/tpo"
+                  className="px-4 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold border border-indigo-200 flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <span>Enter TPO Portal</span>
+                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Quick Stats Banner */}

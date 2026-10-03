@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, PRESET_PERSONAS } from "@/lib/auth-context";
 import { UserRole } from "@/types";
 import { Button } from "@/components/campuslink";
@@ -18,20 +18,35 @@ import {
 } from "lucide-react";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-campus-bg flex items-center justify-center text-sm">Loading login gateway...</div>}>
+      <LoginFormContent />
+    </Suspense>
+  );
+}
+
+function LoginFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  
+  const initialRole = (searchParams.get("role") as UserRole) || "PLACEMENT_OFFICER";
+  const [selectedRole, setSelectedRole] = useState<UserRole>(initialRole === "STUDENT" ? "STUDENT" : "PLACEMENT_OFFICER");
+  const [email, setEmail] = useState(selectedRole === "STUDENT" ? "aarav.patel@campuslink.edu" : "tpo@campuslink.edu");
+  const [password, setPassword] = useState("••••••••");
   const [loading, setLoading] = useState(false);
 
   const handleManualLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setTimeout(() => {
-      // Default fallback login as Placement Officer
-      login("PLACEMENT_OFFICER");
-      router.push("/dashboard/tpo");
-    }, 600);
+      login(selectedRole);
+      if (selectedRole === "STUDENT") {
+        router.push("/dashboard/student");
+      } else {
+        router.push("/dashboard/tpo");
+      }
+    }, 400);
   };
 
   const handleQuickPersona = (role: UserRole) => {
