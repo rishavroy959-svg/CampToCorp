@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": ".\\.venv\\Scripts\\uvicorn app.main:app --reload --port 8000",
+    "backend": ".\\.venv\\Scripts\\uvicorn app.main:app --reload --port 8000",
     "build": "npm --prefix frontend run build",
     "start": "npm --prefix frontend run start"
   }

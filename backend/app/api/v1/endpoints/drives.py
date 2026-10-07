@@ -18,7 +18,7 @@ from app.schemas.drive import (
 )
 from app.services.scheduler import check_drive_conflicts, suggest_alternative_slots
 from app.services.ai_matching import parse_text_skills
-from app.api.deps import require_role
+from app.api.deps import require_role, get_optional_user, resolve_college_scope, NO_ACCESS
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/drives", tags=["Drives & Scheduling"])
@@ -33,25 +33,38 @@ class RescheduleRequest(BaseModel):
 def get_drives(
     status: Optional[DriveStatus] = None,
     has_conflict: Optional[bool] = None,
+    college_id: Optional[int] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Retrieve placement drives with optional status and conflict filters."""
+    """Retrieve placement drives for the caller's own college only (multi-tenant isolation)."""
     Base.metadata.create_all(bind=engine)
+    scope = resolve_college_scope(current_user, college_id)
+    if scope == NO_ACCESS:
+        return []
     query = db.query(Drive)
     if status:
         query = query.filter(Drive.status == status)
     if has_conflict is not None:
         query = query.filter(Drive.has_conflict == has_conflict)
+    if scope is not None:
+        query = query.filter(Drive.college_id == scope)
     return query.order_by(Drive.drive_date.asc()).all()
 
 @router.get("/conflicts/all", response_model=List[ConflictLogResponse])
 def get_all_conflicts(
     unresolved_only: bool = True,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Retrieve all detected calendar and venue collisions (PRD FR-E1 to FR-E4)."""
+    """Retrieve detected calendar and venue collisions for the caller's college (PRD FR-E1 to FR-E4)."""
     Base.metadata.create_all(bind=engine)
+    scope = resolve_college_scope(current_user, None)
+    if scope == NO_ACCESS:
+        return []
     query = db.query(ConflictLog)
+    if scope is not None:
+        query = query.join(Drive, Drive.id == ConflictLog.drive_id).filter(Drive.college_id == scope)
     if unresolved_only:
         query = query.filter(ConflictLog.is_resolved == False)
     return query.order_by(ConflictLog.created_at.desc()).all()
@@ -148,16 +161,25 @@ def create_drive(
 ):
     """Create a new recruitment drive and automatically detect date/venue overlaps."""
     Base.metadata.create_all(bind=engine)
-    existing_drives = db.query(Drive).filter(Drive.status != DriveStatus.CANCELLED).all()
+    drive_data = drive_in.dict()
+    if current_user.role != UserRole.ADMIN:
+        if not current_user.college_id:
+            raise HTTPException(status_code=400, detail="Your account is not linked to a college. Link a college before posting drives.")
+        drive_data["college_id"] = current_user.college_id
 
-    temp_drive = Drive(**drive_in.dict())
+    existing_drives = db.query(Drive).filter(
+        Drive.status != DriveStatus.CANCELLED,
+        Drive.college_id == drive_data.get("college_id"),
+    ).all()
+
+    temp_drive = Drive(**drive_data)
     conflicts = check_drive_conflicts(temp_drive, existing_drives)
 
     has_conflict = len(conflicts) > 0
     conflict_summary = conflicts[0]["description"] if has_conflict else None
 
     drive = Drive(
-        **drive_in.dict(),
+        **drive_data,
         has_conflict=has_conflict,
         conflict_summary=conflict_summary,
     )

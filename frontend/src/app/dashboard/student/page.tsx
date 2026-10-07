@@ -69,6 +69,10 @@ export interface CertificationItem {
 
 interface StudentProfile {
   id: number;
+  college_id?: number;
+  institution_name?: string;
+  college_code?: string;
+  rejection_reason?: string;
   roll_number: string;
   full_name: string;
   email: string;
@@ -93,6 +97,7 @@ interface StudentProfile {
 
 interface DriveItem {
   id: number;
+  college_id?: number;
   company_name: string;
   role_title: string;
   job_description?: string;
@@ -150,6 +155,44 @@ interface OfferItem {
   joining_date?: string;
 }
 
+const EMPTY_PROFILE: StudentProfile = {
+  id: 0,
+  college_id: undefined,
+  institution_name: "",
+  rejection_reason: undefined,
+  roll_number: "",
+  full_name: "",
+  email: "",
+  phone: "",
+  branch: "",
+  batch_year: 2026,
+  cgpa: 0,
+  tenth_percentage: 0,
+  twelfth_percentage: 0,
+  active_backlogs: 0,
+  history_of_backlogs: 0,
+  skills: [],
+  primary_domain: "",
+  certifications: [],
+  projects: [],
+  resume_url: "",
+  readiness_score: 0,
+  readiness_level: "DEVELOPING",
+  is_verified: false,
+  status: "UNPLACED",
+};
+
+// Merge API data over empty defaults, ignoring null/undefined so no demo values leak through
+const normalizeProfile = (data: any): StudentProfile => {
+  const out: any = { ...EMPTY_PROFILE };
+  if (data && typeof data === "object") {
+    for (const key of Object.keys(data)) {
+      if (data[key] !== null && data[key] !== undefined) out[key] = data[key];
+    }
+  }
+  return out as StudentProfile;
+};
+
 function StudentDashboardContent() {
   const { user, updateUser } = useAuth();
   const searchParams = useSearchParams();
@@ -172,43 +215,7 @@ function StudentDashboardContent() {
   };
   
   // Profile State
-  const [profile, setProfile] = useState<StudentProfile>({
-    id: 1,
-    roll_number: "22CS001",
-    full_name: "Shaurya Sharma",
-    email: "shaurya.sharma@campuslink.edu",
-    phone: "+91 9241940968",
-    branch: "CSE",
-    batch_year: 2026,
-    cgpa: 8.8,
-    tenth_percentage: 94.5,
-    twelfth_percentage: 92.0,
-    active_backlogs: 0,
-    history_of_backlogs: 0,
-    skills: ["Python", "FastAPI", "PostgreSQL", "Docker", "React", "Git"],
-    primary_domain: "Full Stack Development",
-    certifications: ["AWS Certified Cloud Practitioner", "Docker Certified Associate"],
-    projects: [
-      {
-        title: "Campus Placement AI Platform",
-        tech: "Python, FastAPI, Next.js",
-        github: "https://github.com/aarav/campuslink",
-        live: "https://campuslink.edu",
-        summary: "Automated student-drive eligibility matching and conflict detection system.",
-      },
-      {
-        title: "Distributed Microservices Gateway",
-        tech: "Go, Docker, Redis",
-        github: "https://github.com/aarav/go-gateway",
-        summary: "High throughput API rate limiter and reverse proxy handling 10k req/s.",
-      }
-    ],
-    resume_url: "Placement_Resume.pdf",
-    readiness_score: 88,
-    readiness_level: "HIGHLY_EMPLOYABLE",
-    is_verified: true,
-    status: "UNPLACED",
-  });
+  const [profile, setProfile] = useState<StudentProfile>(EMPTY_PROFILE);
 
   const [drives, setDrives] = useState<DriveItem[]>([]);
   const [applications, setApplications] = useState<ApplicationItem[]>([]);
@@ -217,6 +224,10 @@ function StudentDashboardContent() {
 
   // Profile Edit State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [availableColleges, setAvailableColleges] = useState<{ id: number; name: string; code: string; city?: string }[]>([]);
+  const [editCollegeId, setEditCollegeId] = useState<number | string>(profile.college_id || "");
+  const [editRollNumber, setEditRollNumber] = useState(profile.roll_number);
+  const [editBatchYear, setEditBatchYear] = useState(profile.batch_year ? profile.batch_year.toString() : "2026");
   const [editFullName, setEditFullName] = useState(profile.full_name);
   const [editEmail, setEditEmail] = useState(profile.email);
   const [editDomain, setEditDomain] = useState(profile.primary_domain);
@@ -242,6 +253,14 @@ function StudentDashboardContent() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingResume, setIsSavingResume] = useState(false);
 
+  // New College Modal State
+  const [showAddCollegeModal, setShowAddCollegeModal] = useState(false);
+  const [newCollegeName, setNewCollegeName] = useState("");
+  const [newCollegeCode, setNewCollegeCode] = useState("");
+  const [newCollegeCity, setNewCollegeCity] = useState("");
+  const [isCreatingCollege, setIsCreatingCollege] = useState(false);
+  const [createCollegeError, setCreateCollegeError] = useState<string | null>(null);
+
   // New Project Modal State
   const [showProjModal, setShowProjModal] = useState(false);
   const [projTitle, setProjTitle] = useState("");
@@ -264,36 +283,58 @@ function StudentDashboardContent() {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const resStudents = await fetch("http://127.0.0.1:8000/api/v1/students/", { cache: "no-store" });
-      let currentStudent = profile;
-      if (resStudents.ok) {
-        const studentList = await resStudents.json();
-        const savedStudentId = typeof window !== "undefined" ? localStorage.getItem("campuslink_student_id") : null;
-        const current = (savedStudentId && studentList.find((s: any) => s.id === parseInt(savedStudentId))) ||
-          studentList.find((s: any) => s.roll_number === "22CS001" || s.roll_number === "22CS014" || (s.email && s.email.toLowerCase().includes("aarav"))) ||
-          studentList[0];
-        if (current) {
-          currentStudent = current;
-          if (typeof window !== "undefined") {
-            localStorage.setItem("campuslink_student_id", current.id.toString());
-            localStorage.setItem("campuslink_student_profile", JSON.stringify(current));
-          }
-          setProfile((prev) => ({ ...prev, ...current }));
-          setEditFullName(current.full_name || profile.full_name);
-          setEditEmail(current.email || profile.email);
-          setEditDomain(current.primary_domain || "Full Stack Development");
-          setEditPhone(current.phone || "+91 98765 43210");
-          setEditBranch(current.branch || "CSE");
-          setEditCgpa(current.cgpa !== undefined ? current.cgpa.toString() : "8.8");
-          setEditTenth(current.tenth_percentage !== undefined ? current.tenth_percentage.toString() : "92.5");
-          setEditTwelfth(current.twelfth_percentage !== undefined ? current.twelfth_percentage.toString() : "90.0");
-          setEditBacklogs(current.active_backlogs !== undefined ? current.active_backlogs.toString() : "0");
-          setResumeFileName(current.resume_url || "Placement_Resume.pdf");
+
+      // Fetch public colleges list for dropdown
+      try {
+        const resColleges = await fetch("http://127.0.0.1:8000/api/v1/colleges/", { cache: "no-store" });
+        if (resColleges.ok) {
+          const collegeList = await resColleges.json();
+          setAvailableColleges(collegeList);
         }
+      } catch (e) {
+        console.warn("Could not load colleges list:", e);
       }
 
+      // Fetch ONLY the authenticated user's own student record
+      const authToken = typeof window !== "undefined"
+        ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+        : null;
+      const resMe = await fetch("http://127.0.0.1:8000/api/v1/students/me", {
+        cache: "no-store",
+        credentials: "include",
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      });
+      if (!resMe.ok) {
+        console.warn("Could not load your student profile (status " + resMe.status + "). Please log in again.");
+        return;
+      }
+      const current = normalizeProfile(await resMe.json());
+      const currentStudent = current;
+      if (typeof window !== "undefined") {
+        localStorage.setItem("campuslink_student_id", current.id.toString());
+        localStorage.setItem("campuslink_student_profile", JSON.stringify(current));
+      }
+      setProfile(current);
+      setEditCollegeId(current.college_id ? current.college_id.toString() : "");
+      setEditRollNumber(current.roll_number);
+      setEditBatchYear(current.batch_year ? current.batch_year.toString() : "2026");
+      setEditFullName(current.full_name);
+      setEditEmail(current.email);
+      setEditDomain(current.primary_domain);
+      setEditPhone(current.phone);
+      setEditBranch(current.branch);
+      setEditCgpa(current.cgpa.toString());
+      setEditTenth(current.tenth_percentage.toString());
+      setEditTwelfth(current.twelfth_percentage.toString());
+      setEditBacklogs(current.active_backlogs.toString());
+      setResumeFileName(current.resume_url);
+
+      const drivesEndpoint = current.college_id 
+        ? `http://127.0.0.1:8000/api/v1/drives/?college_id=${current.college_id}` 
+        : "http://127.0.0.1:8000/api/v1/drives/";
+
       const [resDrives, resApps, resOffers] = await Promise.all([
-        fetch("http://127.0.0.1:8000/api/v1/drives/", { cache: "no-store" }),
+        fetch(drivesEndpoint, { cache: "no-store" }),
         fetch(`http://127.0.0.1:8000/api/v1/applications/?student_id=${currentStudent.id}`, { cache: "no-store" }),
         fetch(`http://127.0.0.1:8000/api/v1/offers/?student_id=${currentStudent.id}`, { cache: "no-store" }),
       ]);
@@ -319,13 +360,59 @@ function StudentDashboardContent() {
     }
   };
 
+  // Create & Register a New College from Student Profile
+  const handleCreateNewCollege = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateCollegeError(null);
+    if (!newCollegeName.trim() || !newCollegeCode.trim()) {
+      setCreateCollegeError("Please enter both College Name and College Code.");
+      return;
+    }
+    setIsCreatingCollege(true);
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/v1/colleges/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCollegeName.trim(),
+          code: newCollegeCode.trim().toUpperCase(),
+          city: newCollegeCity.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to create college");
+      }
+      const created = await res.json();
+      setAvailableColleges((prev) => [...prev, created]);
+      setEditCollegeId(created.id.toString());
+      setShowAddCollegeModal(false);
+      setNewCollegeName("");
+      setNewCollegeCode("");
+      setNewCollegeCity("");
+      alert(`Institution "${created.name}" registered successfully! Selected as your current college.`);
+    } catch (err: any) {
+      setCreateCollegeError(err.message || "Failed to create college");
+    } finally {
+      setIsCreatingCollege(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedProfile = localStorage.getItem("campuslink_student_profile");
+      let loggedInEmail = "";
+      try {
+        loggedInEmail = (JSON.parse(localStorage.getItem("campuslink_custom_user") || "{}").email || "").toLowerCase();
+      } catch (e) {}
       if (savedProfile) {
         try {
           const parsed = JSON.parse(savedProfile);
-          setProfile((prev) => ({ ...prev, ...parsed }));
+          // Only use the cached profile if it belongs to the currently logged-in user
+          if (!loggedInEmail || (parsed.email || "").toLowerCase() !== loggedInEmail) {
+            throw new Error("stale profile cache");
+          }
+          setProfile(normalizeProfile(parsed));
           if (parsed.full_name) setEditFullName(parsed.full_name);
           if (parsed.email) setEditEmail(parsed.email);
           if (parsed.phone) setEditPhone(parsed.phone);
@@ -626,8 +713,14 @@ function StudentDashboardContent() {
       const parsedBacklogs = parseInt(editBacklogs) >= 0 ? parseInt(editBacklogs) : profile.active_backlogs;
       const cleanEmail = editEmail.trim().toLowerCase() || profile.email;
       const cleanFullName = editFullName.trim() || profile.full_name;
+      const cleanRoll = editRollNumber.trim().toUpperCase() || profile.roll_number;
+      const parsedBatch = parseInt(editBatchYear, 10) || profile.batch_year || 2026;
+      const parsedCollegeId = editCollegeId ? parseInt(editCollegeId.toString(), 10) : undefined;
 
       const payload = {
+        college_id: parsedCollegeId,
+        roll_number: cleanRoll,
+        batch_year: parsedBatch,
         full_name: cleanFullName,
         email: cleanEmail,
         phone: editPhone.trim() || profile.phone,
@@ -654,15 +747,27 @@ function StudentDashboardContent() {
         setProfile((prev) => ({ ...prev, ...updated }));
         setEditEmail(updated.email || cleanEmail);
         setEditFullName(updated.full_name || cleanFullName);
+        setEditRollNumber(updated.roll_number || cleanRoll);
+        setEditBatchYear((updated.batch_year || parsedBatch).toString());
+        if (updated.college_id) setEditCollegeId(updated.college_id.toString());
         if (typeof window !== "undefined") {
           localStorage.setItem("campuslink_student_profile", JSON.stringify(updated));
         }
         if (updateUser) {
-          updateUser({ fullName: updated.full_name || cleanFullName, email: updated.email || cleanEmail });
+          updateUser({
+            fullName: updated.full_name || cleanFullName,
+            email: updated.email || cleanEmail,
+            college_id: updated.college_id || parsedCollegeId,
+            college_name: updated.institution_name,
+            college_code: updated.college_code,
+            is_verified: updated.is_verified,
+            status: updated.is_verified ? "ACTIVE" : "PENDING_VERIFICATION",
+          });
         }
-        setProfileSaveSuccess("Profile, email, and academic standings successfully updated & verified!");
+        setProfileSaveSuccess("Personal profile, college affiliation, and academic details successfully saved & verified!");
         setIsEditingProfile(false);
         setTimeout(() => setProfileSaveSuccess(null), 5000);
+        await loadAllData();
       } else {
         const errJson = await res.json().catch(() => null);
         throw new Error(errJson?.detail || "Server returned non-200");
@@ -671,8 +776,14 @@ function StudentDashboardContent() {
       console.warn("Could not save to backend:", err);
       const cleanEmail = editEmail.trim().toLowerCase() || profile.email;
       const cleanFullName = editFullName.trim() || profile.full_name;
+      const cleanRoll = editRollNumber.trim().toUpperCase() || profile.roll_number;
+      const parsedBatch = parseInt(editBatchYear, 10) || profile.batch_year || 2026;
+      const parsedCollegeId = editCollegeId ? parseInt(editCollegeId.toString(), 10) : undefined;
       const localUpdated = {
         ...profile,
+        college_id: parsedCollegeId,
+        roll_number: cleanRoll,
+        batch_year: parsedBatch,
         full_name: cleanFullName,
         email: cleanEmail,
         phone: editPhone.trim() || profile.phone,
@@ -689,10 +800,14 @@ function StudentDashboardContent() {
         localStorage.setItem("campuslink_student_profile", JSON.stringify(localUpdated));
       }
       if (updateUser) {
-        updateUser({ fullName: cleanFullName, email: cleanEmail });
+        updateUser({
+          fullName: cleanFullName,
+          email: cleanEmail,
+          college_id: parsedCollegeId,
+        });
       }
       const isDuplicate = err.message && err.message.toLowerCase().includes("already exists");
-      setProfileSaveSuccess(isDuplicate ? `Error: ${err.message}` : "Profile, email, and academic records updated!");
+      setProfileSaveSuccess(isDuplicate ? `Error: ${err.message}` : "Profile, college, and academic records saved!");
       setIsEditingProfile(false);
       setTimeout(() => setProfileSaveSuccess(null), 5000);
     } finally {
@@ -796,7 +911,7 @@ function StudentDashboardContent() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : ""}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -978,6 +1093,68 @@ function StudentDashboardContent() {
             );
           })}
         </div>
+
+        {/* Verification Status Alert Banner */}
+        {(!profile.is_verified || user?.status === "PENDING_VERIFICATION") && user?.status !== "REJECTED" && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border-2 border-amber-400/80 shadow-md shadow-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="font-black text-sm text-slate-900">
+                    Registration Pending TPO Verification
+                  </h4>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                    {user?.institution || profile.institution_name || "College Placement Cell"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
+                  Your student account is awaiting verification by your College Placement Officer (TPO). 
+                  You can complete your profile details, upload your resume, and practice mock tests. 
+                  Drive applications will activate automatically once approved by your TPO.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all flex items-center gap-1.5"
+            >
+              <span>Review Profile</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Verification Rejection Alert Banner */}
+        {user?.status === "REJECTED" && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-rose-50 border-2 border-rose-400 text-rose-900 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-rose-600/30">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-rose-900">
+                  Verification Declined by Placement Officer
+                </h4>
+                <p className="text-xs text-rose-700 mt-1 max-w-3xl leading-relaxed">
+                  <strong>Reason:</strong> {profile.rejection_reason || "Academic credentials or roll number could not be validated."}.
+                  Please update your details in the Profile tab and contact your institution TPO.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shrink-0 shadow-sm transition-all flex items-center gap-1.5"
+            >
+              <span>Update Profile</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: OVERVIEW & READINESS RING */}
@@ -1286,11 +1463,16 @@ function StudentDashboardContent() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Left Column: Personal & Academic Details */}
               <div className="card-squarespace p-6 space-y-6 lg:col-span-2">
-                <div className="flex items-center justify-between border-b border-campus-border pb-3">
-                  <h3 className="text-lg font-bold text-campus-text-primary flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-campus-primary" />
-                    Personal & Academic Records
-                  </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-campus-border pb-3 gap-2">
+                  <div>
+                    <h3 className="text-lg font-bold text-campus-text-primary flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-campus-primary" />
+                      Personal & Institutional Profile
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Manage your college affiliation, student registration credentials, and official academic records.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -1299,6 +1481,9 @@ function StudentDashboardContent() {
                         setEditEmail(profile.email);
                         setEditPhone(profile.phone);
                         setEditBranch(profile.branch);
+                        setEditRollNumber(profile.roll_number);
+                        setEditBatchYear(profile.batch_year ? profile.batch_year.toString() : "2026");
+                        setEditCollegeId(profile.college_id ? profile.college_id.toString() : "");
                         setEditCgpa(profile.cgpa.toString());
                         setEditTenth(profile.tenth_percentage.toString());
                         setEditTwelfth(profile.twelfth_percentage.toString());
@@ -1306,29 +1491,79 @@ function StudentDashboardContent() {
                       }
                       setIsEditingProfile(!isEditingProfile);
                     }}
-                    className="text-xs font-bold text-campus-primary hover:underline flex items-center gap-1.5"
+                    className="text-xs font-bold text-campus-primary hover:underline flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    {isEditingProfile ? "Cancel Editing" : "Upgrade Academic Details"}
+                    {isEditingProfile ? "Cancel Editing" : "Edit Profile & College"}
                   </button>
                 </div>
 
+                {profileSaveSuccess && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{profileSaveSuccess}</span>
+                  </div>
+                )}
+
                 {/* Edit Mode Alert */}
                 {isEditingProfile && (
-                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-start gap-2.5">
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
                     <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <span className="font-bold block">Academic Upgrade Mode Active</span>
+                    <div className="space-y-0.5">
+                      <span className="font-bold block">Profile & College Editing Active</span>
                       <span>
-                        Updating your CGPA, semester backlogs, or department immediately recalculates your composite readiness score and updates drive eligibility filters across all campus recruitments.
+                        You can modify your personal details, select your college, or update your academic standing. If you switch to another institution, your account will be verified by the new college's Placement Officer.
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* Academic Records: View vs Edit Mode */}
+                {/* Institutional & Personal Records: View vs Edit Mode */}
                 {!isEditingProfile ? (
                   <div className="space-y-4">
+                    {/* College Identity Banner in View Mode */}
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 via-indigo-50/50 to-white border border-blue-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                          <Building className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-slate-900">
+                              {profile.institution_name || user?.institution || user?.college_name || "Institutional Placement Network"}
+                            </span>
+                            {(profile.college_code || user?.college_code) && (
+                              <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-mono font-bold">
+                                {profile.college_code || user?.college_code}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Official College Placement Jurisdiction &bull; Connected to Campus TPO
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0">
+                        {profile.is_verified ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                            Verified Student
+                          </span>
+                        ) : profile.rejection_reason ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                            Verification Rejected
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                            <Clock className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                            Pending TPO Verification
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Candidate Full Name</label>
@@ -1338,10 +1573,10 @@ function StudentDashboardContent() {
                         </div>
                       </div>
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">University Roll Number</label>
-                        <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 font-mono font-bold flex items-center justify-between">
+                        <label className="block font-semibold text-slate-700 mb-1">College Roll Number / Student ID</label>
+                        <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-mono font-bold flex items-center justify-between">
                           <span>{profile.roll_number}</span>
-                          <span className="text-[10px] text-slate-500 font-medium">Official College ID</span>
+                          <span className="text-[10px] text-slate-500 font-medium">Official Enrollment ID</span>
                         </div>
                       </div>
                       <div>
@@ -1354,7 +1589,7 @@ function StudentDashboardContent() {
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
                         <div className="w-full p-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 font-medium flex items-center justify-between">
-                          <span>{profile.phone}</span>
+                          <span>{profile.phone || "Not Specified"}</span>
                           <span className="text-[10px] text-slate-500 font-medium">Primary Contact</span>
                         </div>
                       </div>
@@ -1369,8 +1604,8 @@ function StudentDashboardContent() {
                       </div>
                       <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50/50 text-center space-y-0.5">
                         <span className="text-[10px] uppercase font-bold text-emerald-800 block">Current CGPA</span>
-                        <span className="text-sm font-extrabold text-emerald-700 block">{profile.cgpa.toFixed(2)} / 10.0</span>
-                        <span className="text-[10px] text-emerald-600 font-semibold">Tier 1 Standing</span>
+                        <span className="text-sm font-extrabold text-emerald-700 block">{profile.cgpa > 0 ? profile.cgpa.toFixed(2) : "0.00"} / 10.0</span>
+                        <span className="text-[10px] text-emerald-600 font-semibold">Cumulative Scale</span>
                       </div>
                       <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-center space-y-0.5">
                         <span className="text-[10px] uppercase font-bold text-slate-500 block">10th / 12th Marks</span>
@@ -1390,44 +1625,94 @@ function StudentDashboardContent() {
                   </div>
                 ) : (
                   /* Edit Mode Form */
-                  <div className="space-y-4 p-4 rounded-xl border border-campus-border bg-slate-50/40">
+                  <div className="space-y-5 p-4 sm:p-5 rounded-2xl border border-campus-border bg-slate-50/60">
+                    {/* College Selector Field */}
+                    <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <label className="block font-bold text-blue-950 text-xs">
+                          Affiliated College / Institution *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddCollegeModal(true)}
+                          className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 hover:underline cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Register New College
+                        </button>
+                      </div>
+
+                      <select
+                        value={editCollegeId}
+                        onChange={(e) => setEditCollegeId(e.target.value)}
+                        className="w-full p-2.5 rounded-lg border border-blue-300 bg-white font-semibold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        required
+                      >
+                        <option value="">-- Select Your College --</option>
+                        {availableColleges.map((c) => (
+                          <option key={c.id} value={c.id.toString()}>
+                            {c.name} ({c.code}){c.city ? ` - ${c.city}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Selecting your college connects your account with your college TPO officers (e.g. GITA Placement Cell) to verify your registration and approve recruitment drives.
+                      </p>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Candidate Full Name</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Candidate Full Name *</label>
                         <input
                           type="text"
                           value={editFullName}
                           onChange={(e) => setEditFullName(e.target.value)}
                           placeholder="Your official full name..."
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold focus:ring-1 focus:ring-campus-primary"
+                          required
                         />
                       </div>
+
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Official College Email</label>
+                        <label className="block font-semibold text-slate-700 mb-1">College Roll Number / Registration ID *</label>
+                        <input
+                          type="text"
+                          value={editRollNumber}
+                          onChange={(e) => setEditRollNumber(e.target.value)}
+                          placeholder="e.g. 22CSE045 / GITA-2022-099"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-mono font-bold focus:ring-1 focus:ring-campus-primary"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Official College Email *</label>
                         <input
                           type="email"
                           value={editEmail}
                           onChange={(e) => setEditEmail(e.target.value)}
-                          placeholder="student@campuslink.edu"
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold"
+                          placeholder="student@gita.edu"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold focus:ring-1 focus:ring-campus-primary"
+                          required
                         />
                       </div>
+
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Contact Phone Number</label>
                         <input
                           type="text"
                           value={editPhone}
                           onChange={(e) => setEditPhone(e.target.value)}
                           placeholder="+91 98765 43210"
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs focus:ring-1 focus:ring-campus-primary"
                         />
                       </div>
+
                       <div>
-                        <label className="block font-semibold text-slate-700 mb-1">Engineering Department / Branch</label>
+                        <label className="block font-semibold text-slate-700 mb-1">Engineering Department / Branch *</label>
                         <select
                           value={editBranch}
                           onChange={(e) => setEditBranch(e.target.value)}
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold focus:ring-1 focus:ring-campus-primary"
                         >
                           <option value="CSE">Computer Science & Engineering (CSE)</option>
                           <option value="IT">Information Technology (IT)</option>
@@ -1437,6 +1722,22 @@ function StudentDashboardContent() {
                           <option value="CIVIL">Civil Engineering (CIVIL)</option>
                         </select>
                       </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Graduation Batch Year</label>
+                        <select
+                          value={editBatchYear}
+                          onChange={(e) => setEditBatchYear(e.target.value)}
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-semibold focus:ring-1 focus:ring-campus-primary"
+                        >
+                          <option value="2025">Class of 2025</option>
+                          <option value="2026">Class of 2026</option>
+                          <option value="2027">Class of 2027</option>
+                          <option value="2028">Class of 2028</option>
+                          <option value="2029">Class of 2029</option>
+                        </select>
+                      </div>
+
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">
                           Current Cumulative CGPA (out of 10.0)
@@ -1448,9 +1749,10 @@ function StudentDashboardContent() {
                           max="10"
                           value={editCgpa}
                           onChange={(e) => setEditCgpa(e.target.value)}
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-bold text-emerald-700"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-bold text-emerald-700 focus:ring-1 focus:ring-campus-primary"
                         />
                       </div>
+
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Class 10th Percentage (%)</label>
                         <input
@@ -1460,9 +1762,10 @@ function StudentDashboardContent() {
                           max="100"
                           value={editTenth}
                           onChange={(e) => setEditTenth(e.target.value)}
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs focus:ring-1 focus:ring-campus-primary"
                         />
                       </div>
+
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Class 12th / Diploma Percentage (%)</label>
                         <input
@@ -1472,9 +1775,10 @@ function StudentDashboardContent() {
                           max="100"
                           value={editTwelfth}
                           onChange={(e) => setEditTwelfth(e.target.value)}
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs focus:ring-1 focus:ring-campus-primary"
                         />
                       </div>
+
                       <div>
                         <label className="block font-semibold text-slate-700 mb-1">Active Backlogs Count</label>
                         <input
@@ -1483,7 +1787,7 @@ function StudentDashboardContent() {
                           max="15"
                           value={editBacklogs}
                           onChange={(e) => setEditBacklogs(e.target.value)}
-                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-bold"
+                          className="w-full p-2.5 rounded-lg border border-campus-border bg-white text-xs font-bold focus:ring-1 focus:ring-campus-primary"
                         />
                       </div>
                     </div>
@@ -1971,7 +2275,9 @@ function StudentDashboardContent() {
                           type="button"
                           onClick={() => {
                             setResumeVariant("DEFAULT");
-                            handleSaveResume(profile.resume_url || "Aarav_Patel_Placement_Resume.pdf");
+                            handleSaveResume(
+                              profile.resume_url || (profile.full_name ? `${profile.full_name.replace(/\s+/g, "_")}_Placement_Resume.pdf` : "Student_Placement_Resume.pdf")
+                            );
                           }}
                           className={`text-[10px] px-2.5 py-1 rounded-md font-bold transition-all ${
                             resumeVariant === "DEFAULT"
@@ -3112,6 +3418,105 @@ function StudentDashboardContent() {
                   disabled={applying}
                 >
                   {applying ? "Submitting Application..." : "Confirm & Submit Application"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Add / Register New College */}
+        {showAddCollegeModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                    <Building className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Register Your College</h3>
+                    <p className="text-xs text-slate-500">Add an institution to connect your campus TPO cell</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAddCollegeModal(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {createCollegeError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{createCollegeError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    College / University Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newCollegeName}
+                    onChange={(e) => setNewCollegeName(e.target.value)}
+                    placeholder="e.g. Gandhi Institute for Technological Advancement"
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Short Code / Acronym <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newCollegeCode}
+                      onChange={(e) => setNewCollegeCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. GITA"
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white uppercase font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      City / Location
+                    </label>
+                    <input
+                      type="text"
+                      value={newCollegeCity}
+                      onChange={(e) => setNewCollegeCity(e.target.value)}
+                      placeholder="e.g. Bhubaneswar"
+                      className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-start gap-2">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                  <span>
+                    Registering your college allows campus TPO officers to verify students, publish exclusive drives, and schedule recruitment rounds.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAddCollegeModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleCreateNewCollege}
+                  disabled={isCreatingCollege || !newCollegeName.trim() || !newCollegeCode.trim()}
+                >
+                  {isCreatingCollege ? "Registering..." : "Register & Select College"}
                 </Button>
               </div>
             </div>

@@ -1,41 +1,101 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from statistics import median
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.db.session import get_db, Base, engine
 from app.models.student import Student, ReadinessTier, StudentStatus
 from app.models.offer import Offer, OfferStatus
 from app.models.drive import Drive, DriveStatus
+from app.models.user import User
+from app.api.deps import get_optional_user, resolve_college_scope, NO_ACCESS
 
 router = APIRouter(prefix="/analytics", tags=["Analytics & Reporting"])
 
-@router.get("/overview")
-def get_placement_overview(db: Session = Depends(get_db)) -> Dict[str, Any]:
-    """Retrieve holistic campus placement analytics and accreditation metrics (PRD Module G)."""
-    Base.metadata.create_all(bind=engine)
-    
-    total_students = db.query(Student).count()
-    if total_students == 0:
-        # Provide realistic institutional benchmark defaults
-        total_students = 450
-        placed_students = 344
-        avg_ctc = 12.8
-        highest_ctc = 44.0
-        total_offers = 412
-        at_risk_count = 34
-    else:
-        placed_students = db.query(Student).filter(Student.status == StudentStatus.PLACED).count()
-        total_offers = db.query(Offer).count()
-        at_risk_count = db.query(Student).filter(Student.at_risk == True).count()
-        
-        avg_ctc_query = db.query(func.avg(Offer.ctc_lpa)).filter(Offer.status.in_([OfferStatus.ACCEPTED, OfferStatus.PENDING])).scalar()
-        highest_ctc_query = db.query(func.max(Offer.ctc_lpa)).scalar()
-        
-        avg_ctc = round(float(avg_ctc_query), 2) if avg_ctc_query else 12.8
-        highest_ctc = float(highest_ctc_query) if highest_ctc_query else 44.0
 
-    placement_rate = round((placed_students / total_students) * 100, 1)
+def _pct(part: int, whole: int) -> float:
+    return round((part / whole) * 100, 1) if whole else 0.0
+
+
+@router.get("/overview")
+def get_placement_overview(
+    college_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+) -> Dict[str, Any]:
+    """Real placement analytics computed only from the caller's college data (PRD Module G)."""
+    Base.metadata.create_all(bind=engine)
+    scope = resolve_college_scope(current_user, college_id)
+
+    if scope == NO_ACCESS:
+        students: List[Student] = []
+        drives: List[Drive] = []
+    else:
+        sq = db.query(Student)
+        dq = db.query(Drive)
+        if scope is not None:
+            sq = sq.filter(Student.college_id == scope)
+            dq = dq.filter(Drive.college_id == scope)
+        students = sq.all()
+        drives = dq.all()
+
+    student_ids = [s.id for s in students]
+    offers: List[Offer] = (
+        db.query(Offer).filter(Offer.student_id.in_(student_ids)).all() if student_ids else []
+    )
+
+    total_students = len(students)
+    placed_students = sum(1 for s in students if s.status == StudentStatus.PLACED)
+    at_risk_count = sum(1 for s in students if s.at_risk)
+    total_offers = len(offers)
+
+    valid_ctcs = [o.ctc_lpa for o in offers if o.status in (OfferStatus.ACCEPTED, OfferStatus.PENDING) and o.ctc_lpa]
+    all_ctcs = [o.ctc_lpa for o in offers if o.ctc_lpa]
+    avg_ctc = round(sum(valid_ctcs) / len(valid_ctcs), 2) if valid_ctcs else 0.0
+    highest_ctc = float(max(all_ctcs)) if all_ctcs else 0.0
+    median_ctc = round(float(median(valid_ctcs)), 2) if valid_ctcs else 0.0
+
+    # Readiness distribution
+    tiers = {t: 0 for t in ReadinessTier}
+    for s in students:
+        if s.readiness_level in tiers:
+            tiers[s.readiness_level] += 1
+
+    # Department conversions
+    by_branch: Dict[str, Dict[str, Any]] = {}
+    for s in students:
+        b = by_branch.setdefault(s.branch or "N/A", {"total": 0, "placed": 0, "ctcs": []})
+        b["total"] += 1
+        if s.status == StudentStatus.PLACED:
+            b["placed"] += 1
+    for o in offers:
+        st = next((s for s in students if s.id == o.student_id), None)
+        if st and o.ctc_lpa:
+            by_branch.setdefault(st.branch or "N/A", {"total": 0, "placed": 0, "ctcs": []})["ctcs"].append(o.ctc_lpa)
+    department_conversions = [
+        {
+            "branch": br,
+            "total": d["total"],
+            "placed": d["placed"],
+            "rate_pct": _pct(d["placed"], d["total"]),
+            "avg_ctc": round(sum(d["ctcs"]) / len(d["ctcs"]), 2) if d["ctcs"] else 0.0,
+        }
+        for br, d in sorted(by_branch.items())
+    ]
+
+    # CTC bands
+    bands = [
+        ("Super Dream (> 20 LPA)", lambda c: c > 20),
+        ("Dream (10 - 20 LPA)", lambda c: 10 <= c <= 20),
+        ("Regular (5 - 10 LPA)", lambda c: 5 <= c < 10),
+        ("Foundation (< 5 LPA)", lambda c: c < 5),
+    ]
+    ctc_bands = []
+    for name, fn in bands:
+        cnt = sum(1 for c in all_ctcs if fn(c))
+        ctc_bands.append({"name": name, "count": cnt, "pct": _pct(cnt, len(all_ctcs))})
+
+    placement_rate = _pct(placed_students, total_students)
 
     return {
         "academic_year": "2025-2026",
@@ -48,30 +108,20 @@ def get_placement_overview(db: Session = Depends(get_db)) -> Dict[str, Any]:
             "avg_ctc_lpa": avg_ctc,
             "highest_ctc_lpa": highest_ctc,
             "at_risk_count": at_risk_count,
-            "active_drives_count": db.query(Drive).filter(Drive.status == DriveStatus.UPCOMING).count() or 6,
+            "active_drives_count": sum(1 for d in drives if d.status in (DriveStatus.UPCOMING, DriveStatus.ACTIVE)),
         },
         "readiness_distribution": {
-            "tier_1_highly_employable": 168,
-            "tier_2_job_ready": 142,
-            "tier_3_developing": 106,
-            "tier_4_at_risk": 34,
+            "tier_1_highly_employable": tiers[ReadinessTier.HIGHLY_EMPLOYABLE],
+            "tier_2_job_ready": tiers[ReadinessTier.READY],
+            "tier_3_developing": tiers[ReadinessTier.DEVELOPING],
+            "tier_4_at_risk": tiers[ReadinessTier.NOT_READY],
         },
-        "department_conversions": [
-            {"branch": "CSE", "total": 130, "placed": 120, "rate_pct": 92.3, "avg_ctc": 16.4},
-            {"branch": "IT", "total": 70, "placed": 59, "rate_pct": 84.2, "avg_ctc": 14.1},
-            {"branch": "ECE", "total": 120, "placed": 88, "rate_pct": 73.3, "avg_ctc": 11.8},
-            {"branch": "MECH", "total": 130, "placed": 77, "rate_pct": 59.2, "avg_ctc": 8.4},
-        ],
-        "ctc_bands": [
-            {"name": "Super Dream (> 20 LPA)", "count": 42, "pct": 10.2},
-            {"name": "Dream (10 - 20 LPA)", "count": 156, "pct": 37.8},
-            {"name": "Regular (5 - 10 LPA)", "count": 146, "pct": 35.4},
-            {"name": "Foundation (< 5 LPA)", "count": 68, "pct": 16.5},
-        ],
+        "department_conversions": department_conversions,
+        "ctc_bands": ctc_bands,
         "compliance": {
-            "nirf_metric_5_2_1": "Compliant (76.4%)",
-            "median_salary_lpa": 10.5,
-            "higher_studies_count": 38,
-            "entrepreneurship_count": 8,
-        }
+            "nirf_metric_5_2_1": f"{placement_rate}% placed",
+            "median_salary_lpa": median_ctc,
+            "higher_studies_count": 0,
+            "entrepreneurship_count": 0,
+        },
     }

@@ -7,7 +7,7 @@ from app.db.session import get_db, Base, engine
 from app.models.offer import Offer, OfferStatus
 from app.models.student import Student, StudentStatus
 from app.schemas.offer import OfferCreate, OfferUpdate, OfferResponse, DocVerificationRequest
-from app.api.deps import require_role, get_current_user
+from app.api.deps import require_role, get_current_user, get_optional_user, resolve_college_scope, NO_ACCESS
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/offers", tags=["Offer & Documentation Tracking"])
@@ -18,10 +18,19 @@ def get_offers(
     docs_verified: Optional[bool] = None,
     student_id: Optional[int] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Retrieve offers with optional filters (PRD Module F)."""
+    """Retrieve offers for students of the caller's college (PRD Module F)."""
     Base.metadata.create_all(bind=engine)
     query = db.query(Offer)
+    if current_user is not None:
+        scope = resolve_college_scope(current_user, None)
+        if scope == NO_ACCESS:
+            return []
+        if scope is not None:
+            query = query.join(Student, Student.id == Offer.student_id).filter(Student.college_id == scope)
+    elif not student_id:
+        return []
     if status:
         query = query.filter(Offer.status == status)
     if docs_verified is not None:

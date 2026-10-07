@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.models.drive import SlotType, DriveStatus, ConflictType, ConflictSeverity
 
 class DriveBase(BaseModel):
+    college_id: Optional[int] = None
     company_name: str
     role_title: str
     job_description: Optional[str] = None

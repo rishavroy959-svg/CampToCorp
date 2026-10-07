@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 from app.models.student import ReadinessTier, StudentStatus
 
 class StudentBase(BaseModel):
+    college_id: Optional[int] = None
     roll_number: str
     full_name: str
     email: EmailStr
@@ -24,16 +25,20 @@ class StudentBase(BaseModel):
     resume_url: Optional[str] = "Placement_Resume.pdf"
     primary_domain: Optional[str] = "Full Stack Development"
     profile_completed_pct: Optional[int] = 95
-    is_verified: Optional[bool] = True
+    is_verified: Optional[bool] = False
+    rejection_reason: Optional[str] = None
 
 class StudentCreate(StudentBase):
     pass
 
 class StudentUpdate(BaseModel):
+    college_id: Optional[int] = None
+    roll_number: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     branch: Optional[str] = None
+    batch_year: Optional[int] = None
     cgpa: Optional[float] = None
     tenth_percentage: Optional[float] = None
     twelfth_percentage: Optional[float] = None
@@ -62,6 +67,8 @@ class StudentResponse(StudentBase):
     risk_score: float
     status: StudentStatus
     mentor_assigned: Optional[str] = None
+    institution_name: Optional[str] = None
+    college_code: Optional[str] = None
 
     class Config:
         from_attributes = True

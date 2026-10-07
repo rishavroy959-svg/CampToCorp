@@ -30,6 +30,7 @@ class Drive(Base):
     __tablename__ = "drives"
 
     id = Column(Integer, primary_key=True, index=True)
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True, index=True)
     company_name = Column(String, index=True, nullable=False)
     role_title = Column(String, nullable=False)
     job_description = Column(Text, nullable=True)

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   KPICard,
@@ -18,14 +18,90 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   ArrowUpRight,
+  AlertTriangle,
 } from "lucide-react";
 
+interface AnalyticsData {
+  academic_year: string;
+  cohort: string;
+  kpis: {
+    total_students: number;
+    placed_students: number;
+    placement_rate_pct: number;
+    total_offers: number;
+    avg_ctc_lpa: number;
+    highest_ctc_lpa: number;
+    at_risk_count: number;
+    active_drives_count: number;
+  };
+  readiness_distribution: {
+    tier_1_highly_employable: number;
+    tier_2_job_ready: number;
+    tier_3_developing: number;
+    tier_4_at_risk: number;
+  };
+  department_conversions: Array<{
+    branch: string;
+    total: number;
+    placed: number;
+    rate_pct: number;
+    avg_ctc: number;
+  }>;
+  ctc_bands: Array<{
+    name: string;
+    count: number;
+    pct: number;
+  }>;
+  compliance: {
+    nirf_metric_5_2_1: string;
+    median_salary_lpa: number;
+    higher_studies_count: number;
+    entrepreneurship_count: number;
+  };
+}
+
 export default function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        const token = typeof window !== "undefined"
+          ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+          : null;
+        const res = await fetch("http://127.0.0.1:8000/api/v1/analytics/overview", {
+          cache: "no-store",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          setData(await res.json());
+        }
+      } catch (e) {
+        console.warn("Failed to load analytics:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, []);
 
   const handleExportNIRF = () => {
     setDownloadSuccess(true);
     setTimeout(() => setDownloadSuccess(false), 3500);
+  };
+
+  const kpis = data?.kpis || {
+    total_students: 0,
+    placed_students: 0,
+    placement_rate_pct: 0,
+    total_offers: 0,
+    avg_ctc_lpa: 0,
+    highest_ctc_lpa: 0,
+    at_risk_count: 0,
+    active_drives_count: 0,
   };
 
   return (
@@ -44,7 +120,7 @@ export default function AnalyticsPage() {
               Institutional Placement Analytics
             </h1>
             <p className="text-sm text-campus-text-secondary mt-1">
-              Graduating Batch of 2026 &bull; Real-time salary distributions, department conversions, and accreditation audit metrics.
+              Graduating Batch of 2026 &bull; Real-time salary distributions, department conversions, and accreditation audit metrics for your campus.
             </p>
           </div>
 
@@ -65,7 +141,7 @@ export default function AnalyticsPage() {
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               <span>
-                NIRF / NAAC Placement Compliance Report 2025–2026 generated and exported successfully (CSV & PDF).
+                NIRF / NAAC Placement Compliance Report generated and exported successfully (CSV & PDF).
               </span>
             </div>
             <span className="text-[11px] text-emerald-700 underline cursor-pointer">
@@ -78,28 +154,28 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
           <KPICard
             title="Batch Placement Rate"
-            metric="76.4%"
-            subtitle="344 of 450 Graduating Students"
-            trend={{ value: "+12.4% YoY", isPositive: true }}
+            metric={`${kpis.placement_rate_pct}%`}
+            subtitle={`${kpis.placed_students} of ${kpis.total_students} Registered Students`}
+            trend={{ value: `${kpis.placed_students} Placed`, isPositive: kpis.placement_rate_pct > 0 }}
             icon={<GraduationCap className="w-5 h-5 text-campus-primary" />}
           />
           <KPICard
             title="Average CTC Package"
-            metric="12.8 LPA"
-            subtitle="Median: 10.5 LPA"
-            trend={{ value: "+18.2% YoY", isPositive: true }}
+            metric={`${kpis.avg_ctc_lpa} LPA`}
+            subtitle={`Median: ${data?.compliance?.median_salary_lpa || 0} LPA`}
+            trend={{ value: "Active Offers", isPositive: true }}
             icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
           />
           <KPICard
             title="Highest Package"
-            metric="44.0 LPA"
-            subtitle="Google Cloud (SRE)"
+            metric={`${kpis.highest_ctc_lpa} LPA`}
+            subtitle={`${kpis.total_offers} Total Offer Letters`}
             icon={<Award className="w-5 h-5 text-purple-600" />}
           />
           <KPICard
-            title="Recruiting Partners"
-            metric="64 Companies"
-            subtitle="28 Fortune 500 Orgs"
+            title="Active Campus Drives"
+            metric={`${kpis.active_drives_count} Drives`}
+            subtitle={`${kpis.at_risk_count} Candidates At-Risk`}
             icon={<Building className="w-5 h-5 text-blue-600" />}
           />
         </div>
@@ -113,77 +189,39 @@ export default function AnalyticsPage() {
                   CTC Package Tier Distribution
                 </h2>
                 <p className="text-xs text-campus-text-secondary mt-0.5">
-                  Offers categorized by institutional salary bands.
+                  Verified offers categorized by institutional salary bands.
                 </p>
               </div>
               <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
-                412 Total Offers Extended
+                {kpis.total_offers} Total Offers Extended
               </span>
             </div>
 
             <div className="space-y-4">
-              {[
-                {
-                  tier: "Super Dream (> 20.0 LPA)",
-                  count: 42,
-                  pct: 10.2,
-                  color: "bg-purple-600",
-                  textColor: "text-purple-700",
-                  bgColor: "bg-purple-50",
-                  borderColor: "border-purple-200",
-                  companies: "Google Cloud, Microsoft IDC, Goldman Sachs",
-                },
-                {
-                  tier: "Dream (10.0 – 20.0 LPA)",
-                  count: 156,
-                  pct: 37.8,
-                  color: "bg-blue-600",
-                  textColor: "text-blue-700",
-                  bgColor: "bg-blue-50",
-                  borderColor: "border-blue-200",
-                  companies: "Cisco Systems, Qualcomm, Amazon Web Services",
-                },
-                {
-                  tier: "Regular (5.0 – 10.0 LPA)",
-                  count: 146,
-                  pct: 35.4,
-                  color: "bg-emerald-600",
-                  textColor: "text-emerald-700",
-                  bgColor: "bg-emerald-50",
-                  borderColor: "border-emerald-200",
-                  companies: "Accenture, TCS Digital, Cognizant GenC Next",
-                },
-                {
-                  tier: "Mass / Foundation (< 5.0 LPA)",
-                  count: 68,
-                  pct: 16.5,
-                  color: "bg-slate-400",
-                  textColor: "text-slate-700",
-                  bgColor: "bg-slate-50",
-                  borderColor: "border-slate-200",
-                  companies: "Campus pool drives and service cohorts",
-                },
-              ].map((tier, idx) => (
-                <div key={idx} className="space-y-1.5">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-campus-text-primary">
-                      {tier.tier}
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      {tier.count} Offers ({tier.pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                    <div
-                      className={`${tier.color} h-2.5 rounded-full transition-all duration-700`}
-                      style={{ width: `${tier.pct * 2}%` }}
-                    />
-                  </div>
-                  <div className="text-[11px] text-campus-text-secondary">
-                    Key recruiters: {tier.companies}
-                  </div>
+              {(data?.ctc_bands || []).length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
+                  No verified offers extended yet. Once recruiters release offer letters, salary distribution will appear here.
                 </div>
-              ))}
+              ) : (
+                (data?.ctc_bands || []).map((band, idx) => (
+                  <div key={idx} className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-campus-text-primary">
+                        {band.name}
+                      </span>
+                      <span className="font-bold text-slate-800">
+                        {band.count} Offers ({band.pct}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="bg-indigo-600 h-2.5 rounded-full transition-all duration-700"
+                        style={{ width: `${Math.min(100, band.pct * 2)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -193,25 +231,25 @@ export default function AnalyticsPage() {
               NIRF & NAAC Audit Readiness
             </h2>
             <p className="text-xs text-campus-text-secondary">
-              Parameters tracked for Ministry of Education accreditation metrics.
+              Parameters tracked for institutional accreditation metrics.
             </p>
 
             <div className="space-y-3 pt-2 text-xs">
               <div className="p-3 rounded-xl bg-slate-50 border border-campus-border flex items-center justify-between">
                 <span className="text-slate-600">Metric 5.2.1 (Placement %):</span>
-                <span className="font-bold text-emerald-600">76.4% (Pass)</span>
+                <span className="font-bold text-emerald-600">{data?.compliance?.nirf_metric_5_2_1 || "0%"}</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-campus-border flex items-center justify-between">
                 <span className="text-slate-600">Median Salary (Metric 5.2.2):</span>
-                <span className="font-bold text-campus-primary">10.5 LPA</span>
+                <span className="font-bold text-campus-primary">{data?.compliance?.median_salary_lpa || 0} LPA</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-campus-border flex items-center justify-between">
-                <span className="text-slate-600">Higher Studies Progression:</span>
-                <span className="font-bold text-slate-700">38 Students (8.4%)</span>
+                <span className="text-slate-600">At-Risk Interventions:</span>
+                <span className="font-bold text-rose-600">{kpis.at_risk_count} Students Flagged</span>
               </div>
               <div className="p-3 rounded-xl bg-slate-50 border border-campus-border flex items-center justify-between">
-                <span className="text-slate-600">Multi-Offer Candidates:</span>
-                <span className="font-bold text-purple-700">68 Students</span>
+                <span className="text-slate-600">Campus Placement Status:</span>
+                <span className="font-bold text-indigo-700">Official Institutional Tenancy</span>
               </div>
             </div>
 
@@ -235,7 +273,7 @@ export default function AnalyticsPage() {
                 Departmental Conversion & Salary Breakdown
               </h2>
               <p className="text-xs text-campus-text-secondary mt-0.5">
-                Comparative analysis across all engineering faculties.
+                Comparative analysis across engineering disciplines for your college.
               </p>
             </div>
           </div>
@@ -249,81 +287,36 @@ export default function AnalyticsPage() {
                   <th className="py-3 px-3 text-center">Placed</th>
                   <th className="py-3 px-3 text-center">Conversion %</th>
                   <th className="py-3 px-3 text-right">Avg CTC</th>
-                  <th className="py-3 px-3 text-right">Highest CTC</th>
-                  <th className="py-3 px-4 text-right">At-Risk Count</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {[
-                  {
-                    dept: "Computer Science & Engineering",
-                    batch: 130,
-                    placed: 120,
-                    pct: 92.3,
-                    avg: "16.4 LPA",
-                    highest: "44.0 LPA",
-                    atRisk: 4,
-                  },
-                  {
-                    dept: "Information Technology",
-                    batch: 70,
-                    placed: 59,
-                    pct: 84.2,
-                    avg: "14.1 LPA",
-                    highest: "32.0 LPA",
-                    atRisk: 3,
-                  },
-                  {
-                    dept: "Electronics & Communication",
-                    batch: 120,
-                    placed: 88,
-                    pct: 73.3,
-                    avg: "11.8 LPA",
-                    highest: "26.0 LPA",
-                    atRisk: 11,
-                  },
-                  {
-                    dept: "Mechanical Engineering",
-                    batch: 130,
-                    placed: 77,
-                    pct: 59.2,
-                    avg: "8.4 LPA",
-                    highest: "16.0 LPA",
-                    atRisk: 16,
-                  },
-                ].map((row, i) => (
-                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-3 px-4 font-bold text-campus-text-primary">
-                      {row.dept}
-                    </td>
-                    <td className="py-3 px-3 text-center text-slate-600">{row.batch}</td>
-                    <td className="py-3 px-3 text-center font-bold text-emerald-700">
-                      {row.placed}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                        {row.pct}%
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-campus-primary">
-                      {row.avg}
-                    </td>
-                    <td className="py-3 px-3 text-right font-extrabold text-slate-800">
-                      {row.highest}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                          row.atRisk > 10
-                            ? "bg-rose-100 text-rose-700 border border-rose-200"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {row.atRisk} Students
-                      </span>
+                {(data?.department_conversions || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                      No student records found in your institutional directory.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  (data?.department_conversions || []).map((row, i) => (
+                    <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-4 font-bold text-campus-text-primary">
+                        {row.branch}
+                      </td>
+                      <td className="py-3 px-3 text-center text-slate-600">{row.total}</td>
+                      <td className="py-3 px-3 text-center font-bold text-emerald-700">
+                        {row.placed}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                          {row.rate_pct}%
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-campus-primary">
+                        {row.avg_ctc ? `${row.avg_ctc} LPA` : "N/A"}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

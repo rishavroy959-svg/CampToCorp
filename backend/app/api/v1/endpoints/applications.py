@@ -13,7 +13,7 @@ from app.models.student import Student, StudentStatus
 from app.models.offer import Offer, OfferStatus
 from app.models.notification import Notification, NotificationType
 from app.models.user import User, UserRole
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_role, get_optional_user, resolve_college_scope, NO_ACCESS
 
 router = APIRouter(prefix="/applications", tags=["Drive Applications & Round Tracker"])
 
@@ -47,10 +47,19 @@ def get_applications(
     drive_id: Optional[int] = None,
     status: Optional[ApplicationStatus] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Retrieve drive applications with student & company metadata."""
+    """Retrieve drive applications (scoped to the caller's college) with student & company metadata."""
     Base.metadata.create_all(bind=engine)
     query = db.query(DriveApplication)
+    if current_user is not None:
+        scope = resolve_college_scope(current_user, None)
+        if scope == NO_ACCESS:
+            return []
+        if scope is not None:
+            query = query.join(Drive, Drive.id == DriveApplication.drive_id).filter(Drive.college_id == scope)
+    elif not student_id:
+        return []
     if student_id:
         query = query.filter(DriveApplication.student_id == student_id)
     if drive_id:
@@ -104,6 +113,25 @@ def apply_for_drive(
     drive = db.query(Drive).filter(Drive.id == req.drive_id).first()
     if not drive:
         raise HTTPException(status_code=404, detail="Placement drive not found.")
+
+    # 0. Check TPO Verification Status
+    linked_user = db.query(User).filter(User.id == student.user_id).first() if student.user_id else None
+    if student.is_verified is False or (linked_user and linked_user.status == UserStatus.PENDING_VERIFICATION):
+        raise HTTPException(
+            status_code=403,
+            detail="Access Pending: Your student profile is awaiting verification by your College Placement Officer (TPO). Once approved, you can apply for drives."
+        )
+    if linked_user and linked_user.status == UserStatus.REJECTED:
+        reason = linked_user.rejection_reason or student.rejection_reason or "Verification was declined by the Placement Cell."
+        raise HTTPException(
+            status_code=403,
+            detail=f"Verification Rejected: {reason}. Please contact your TPO."
+        )
+    if drive.college_id and student.college_id and drive.college_id != student.college_id:
+        raise HTTPException(
+            status_code=403,
+            detail="This recruitment drive is restricted to another college's campus placement cell."
+        )
 
     # 1. Check existing application
     existing_app = db.query(DriveApplication).filter(

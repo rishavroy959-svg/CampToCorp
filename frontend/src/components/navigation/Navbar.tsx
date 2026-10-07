@@ -3,7 +3,7 @@
 import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAuth, PRESET_PERSONAS, ACTIVE_ROLES } from "@/lib/auth-context";
+import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/types";
 import {
   ChevronDown,
@@ -95,20 +95,11 @@ function StudentNavLinks({ pathname }: { pathname: string }) {
 }
 
 export const Navbar: React.FC = () => {
-  const { user, switchRole, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-
-  const handleRoleSelect = (role: UserRole) => {
-    switchRole(role);
-    setDropdownOpen(false);
-
-    // Redirect to corresponding dashboard (only Student or TPO)
-    if (role === "STUDENT") router.push("/dashboard/student");
-    else router.push("/dashboard/tpo");
-  };
 
   const roleMeta: Record<
     UserRole,
@@ -251,6 +242,22 @@ export const Navbar: React.FC = () => {
                     }`}
                   />
                 </Link>
+                <Link
+                  href="/dashboard/tpo/governance"
+                  className={`group relative px-3 py-1.5 rounded-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                    pathname === "/dashboard/tpo/governance"
+                      ? "bg-indigo-50/90 text-indigo-700 font-semibold shadow-2xs"
+                      : "text-slate-600 hover:text-indigo-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Access Governance</span>
+                  <span
+                    className={`absolute bottom-0.5 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-transform duration-200 origin-center ${
+                      pathname === "/dashboard/tpo/governance" ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
+                    }`}
+                  />
+                </Link>
               </>
             )}
 
@@ -302,71 +309,17 @@ export const Navbar: React.FC = () => {
               title="Notifications & Alerts"
             >
               <Bell className="w-4 h-4 text-campus-text-primary" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-white animate-pulse" />
             </button>
 
             {notifOpen && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-campus-border py-2 z-50 animate-fade-in">
                 <div className="px-3.5 py-2 border-b border-slate-100 flex items-center justify-between">
                   <span className="text-xs font-bold text-campus-text-primary">
-                    Placement Alerts (PRD Area 6)
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-semibold border border-rose-200">
-                    3 New
+                    Notifications
                   </span>
                 </div>
-
-                <div className="p-1 space-y-1 max-h-72 overflow-y-auto">
-                  <div className="p-2.5 rounded-lg bg-rose-50/50 border border-rose-100 hover:bg-rose-50 transition-colors text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-rose-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                      Drive Schedule Collision
-                    </div>
-                    <p className="text-[11px] text-rose-700">
-                      Google Cloud & AWS double-booked Auditorium Hall A on Oct 18.
-                    </p>
-                    <Link
-                      href="/drives"
-                      onClick={() => setNotifOpen(false)}
-                      className="text-[10px] font-bold text-rose-800 underline block pt-0.5"
-                    >
-                      Resolve in Conflict Engine &rarr;
-                    </Link>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-blue-50/50 border border-blue-100 hover:bg-blue-50 transition-colors text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-blue-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      Candidate Shortlist Ready
-                    </div>
-                    <p className="text-[11px] text-blue-700">
-                      AI ranker scored 48 eligible candidates for Google Cloud SRE drive.
-                    </p>
-                    <Link
-                      href="/matching"
-                      onClick={() => setNotifOpen(false)}
-                      className="text-[10px] font-bold text-blue-800 underline block pt-0.5"
-                    >
-                      View Ranked Pool &rarr;
-                    </Link>
-                  </div>
-
-                  <div className="p-2.5 rounded-lg bg-amber-50/50 border border-amber-100 hover:bg-amber-50 transition-colors text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
-                      At-Risk Student Escalation
-                    </div>
-                    <p className="text-[11px] text-amber-700">
-                      4 candidates flagged with readiness score &lt; 40 points.
-                    </p>
-                    <Link
-                      href="/dashboard/tpo"
-                      onClick={() => setNotifOpen(false)}
-                      className="text-[10px] font-bold text-amber-800 underline block pt-0.5"
-                    >
-                      Assign Faculty Mentors &rarr;
-                    </Link>
-                  </div>
+                <div className="px-4 py-6 text-center text-xs text-slate-500">
+                  You are all caught up. No new alerts.
                 </div>
 
                 <div className="border-t border-slate-100 px-3 py-1.5 text-center">
@@ -400,60 +353,22 @@ export const Navbar: React.FC = () => {
               <ChevronDown className="w-3.5 h-3.5 text-campus-text-secondary ml-1" />
             </button>
 
-          {/* Dropdown Menu */}
+          {/* Dropdown Menu: signed-in account + Log Out only */}
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-campus-border py-2 z-50">
-              <div className="px-3.5 py-2 border-b border-slate-100">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-campus-text-secondary">
-                  Switch Dashboard
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
-                  Choose between Student and Placement Officer
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-campus-border py-2 z-50">
+              <div className="px-3.5 py-2 border-b border-slate-100 flex items-center gap-2">
+                {currentMeta.icon}
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-campus-text-primary truncate">
+                    {user?.fullName || "Guest User"}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {user?.email || currentMeta.label}
+                  </div>
                 </div>
               </div>
 
-              <div className="p-1.5 space-y-1">
-                {ACTIVE_ROLES.map((r) => {
-                  const p = PRESET_PERSONAS[r];
-                  const m = roleMeta[r];
-                  const isCurrent = user?.role === r;
-
-                  return (
-                    <button
-                      key={r}
-                      onClick={() => handleRoleSelect(r)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                        isCurrent
-                          ? "bg-slate-100 font-semibold text-campus-primary"
-                          : "hover:bg-slate-50 text-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        {m.icon}
-                        <div>
-                          <div>{p.fullName}</div>
-                          <div className="text-[10px] text-slate-500 font-normal">{m.label}</div>
-                        </div>
-                      </div>
-                      {isCurrent && (
-                        <span className="text-[10px] bg-campus-primary text-white px-1.5 py-0.5 rounded">
-                          Active
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="border-t border-slate-100 p-1.5 mt-1">
-                <Link
-                  href="/auth/login"
-                  onClick={() => setDropdownOpen(false)}
-                  className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-slate-600 hover:bg-slate-50 flex items-center gap-2"
-                >
-                  <User className="w-3.5 h-3.5" />
-                  Sign In with Different Account
-                </Link>
+              <div className="p-1.5">
                 <button
                   onClick={() => {
                     logout();

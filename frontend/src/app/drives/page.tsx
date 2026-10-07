@@ -56,92 +56,52 @@ interface DriveScheduleItem {
 }
 
 export default function DrivesPage() {
-  const [drives, setDrives] = useState<DriveScheduleItem[]>([
-    {
-      id: 1,
-      companyName: "Google Cloud",
-      roleTitle: "Site Reliability Engineer",
-      ctcLpa: 32.0,
-      driveDate: "2026-10-18",
-      slot: "FULL_DAY",
-      venue: "Auditorium Hall A",
-      panelsCount: 4,
-      status: "UPCOMING",
-      hasConflict: true,
-      conflictSeverity: "CRITICAL",
-      conflictDescription: "Venue Collision: Auditorium Hall A is simultaneously reserved by Amazon Web Services on 2026-10-18.",
-      conflictingCompany: "Amazon Web Services",
-      alternativeSuggestions: [
-        {
-          type: "SAME_DAY_DIFFERENT_VENUE",
-          date: "2026-10-18",
-          slot: "FULL_DAY",
-          venue: "CS Lab Complex 1",
-          confidence: "Optimal (Zero Venue Overlap)",
-          rationale: "Switch venue to CS Lab Complex 1 (capacity: 120 seats, 4 private interview cabins available).",
-        },
-        {
-          type: "NEXT_AVAILABLE_DAY",
-          date: "2026-10-19",
-          slot: "FULL_DAY",
-          venue: "Auditorium Hall A",
-          confidence: "Recommended",
-          rationale: "Postpone drive by 24 hours to 2026-10-19 where Auditorium Hall A has 100% full-day vacancy.",
-        },
-      ],
-    },
-    {
-      id: 2,
-      companyName: "Amazon Web Services",
-      roleTitle: "Cloud Support Associate",
-      ctcLpa: 22.0,
-      driveDate: "2026-10-18",
-      slot: "FULL_DAY",
-      venue: "Auditorium Hall A",
-      panelsCount: 3,
-      status: "UPCOMING",
-      hasConflict: true,
-      conflictSeverity: "CRITICAL",
-      conflictDescription: "Venue Double-Booking at Auditorium Hall A with Google Cloud.",
-      conflictingCompany: "Google Cloud",
-    },
-    {
-      id: 3,
-      companyName: "Microsoft IDC",
-      roleTitle: "Cloud Software Engineer",
-      ctcLpa: 28.5,
-      driveDate: "2026-10-15",
-      slot: "FULL_DAY",
-      venue: "Auditorium Hall A",
-      panelsCount: 5,
-      status: "ACTIVE",
-      hasConflict: false,
-    },
-    {
-      id: 4,
-      companyName: "Goldman Sachs",
-      roleTitle: "Quantitative Technology Analyst",
-      ctcLpa: 26.0,
-      driveDate: "2026-10-22",
-      slot: "MORNING",
-      venue: "Main Conference Hall",
-      panelsCount: 3,
-      status: "UPCOMING",
-      hasConflict: false,
-    },
-    {
-      id: 5,
-      companyName: "Qualcomm India",
-      roleTitle: "Embedded Software Engineer",
-      ctcLpa: 21.5,
-      driveDate: "2026-10-24",
-      slot: "AFTERNOON",
-      venue: "ECE Seminar Room",
-      panelsCount: 4,
-      status: "UPCOMING",
-      hasConflict: false,
-    },
-  ]);
+  const [drives, setDrives] = useState<DriveScheduleItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDrives = async () => {
+    try {
+      setLoading(true);
+      const token = typeof window !== "undefined"
+        ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+        : null;
+      const res = await fetch("http://127.0.0.1:8000/api/v1/drives/", {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped: DriveScheduleItem[] = data.map((d: any) => ({
+          id: d.id,
+          companyName: d.company_name,
+          roleTitle: d.role_title,
+          ctcLpa: d.ctc_lpa,
+          driveDate: d.drive_date,
+          slot: d.slot,
+          venue: d.venue,
+          panelsCount: d.interview_panels_count || 3,
+          status: d.status || "UPCOMING",
+          jobDescription: d.job_description,
+          minCgpa: d.min_cgpa,
+          allowedBranches: d.allowed_branches,
+          maxBacklogsAllowed: d.max_backlogs_allowed,
+          requiredSkills: d.required_skills,
+          hasConflict: d.has_conflict,
+          conflictSeverity: d.has_conflict ? "CRITICAL" : undefined,
+          conflictDescription: d.conflict_summary,
+        }));
+        setDrives(mapped);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch drives:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDrives();
+  }, []);
 
   const [activeConflictModal, setActiveConflictModal] = useState<DriveScheduleItem | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -240,82 +200,16 @@ export default function DrivesPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer jwt-token-placement_officer",
+          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : ""}`,
         },
         body: JSON.stringify(drivePayload),
       });
 
       if (res.ok) {
-        const createdData = await res.json();
-        const newDriveItem: DriveScheduleItem = {
-          id: createdData.id,
-          companyName: createdData.company_name,
-          roleTitle: createdData.role_title,
-          ctcLpa: createdData.ctc_lpa,
-          driveDate: createdData.drive_date,
-          slot: createdData.slot,
-          venue: createdData.venue,
-          panelsCount: createdData.interview_panels_count,
-          status: createdData.status || "UPCOMING",
-          jobDescription: createdData.job_description,
-          minCgpa: createdData.min_cgpa,
-          allowedBranches: createdData.allowed_branches,
-          maxBacklogsAllowed: createdData.max_backlogs_allowed,
-          requiredSkills: createdData.required_skills,
-          hasConflict: createdData.has_conflict,
-          conflictSeverity: createdData.has_conflict ? "CRITICAL" : undefined,
-          conflictDescription: createdData.conflict_summary || (conflict ? `Venue collision at ${newVenue} on ${newDate}` : undefined),
-        };
-        setDrives([newDriveItem, ...drives]);
-      } else {
-        // Fallback local drive creation
-        const newDriveItem: DriveScheduleItem = {
-          id: drives.length + 1,
-          companyName: newCompany,
-          roleTitle: newRole,
-          ctcLpa: parseFloat(newCtc) || 15.0,
-          driveDate: newDate,
-          slot: newSlot,
-          venue: newVenue,
-          panelsCount: newPanels,
-          status: "UPCOMING",
-          jobDescription: newJobDescription,
-          minCgpa: newMinCgpa,
-          allowedBranches: newAllowedBranches,
-          maxBacklogsAllowed: newMaxBacklogs,
-          requiredSkills: newRequiredSkills,
-          hasConflict: !!conflict,
-          conflictSeverity: conflict ? "CRITICAL" : undefined,
-          conflictDescription: conflict
-            ? `Double-booking at '${newVenue}' with ${conflict.companyName} on ${newDate}.`
-            : undefined,
-        };
-        setDrives([newDriveItem, ...drives]);
+        await fetchDrives();
       }
     } catch {
-      // Offline fallback
-      const newDriveItem: DriveScheduleItem = {
-        id: drives.length + 1,
-        companyName: newCompany,
-        roleTitle: newRole,
-        ctcLpa: parseFloat(newCtc) || 15.0,
-        driveDate: newDate,
-        slot: newSlot,
-        venue: newVenue,
-        panelsCount: newPanels,
-        status: "UPCOMING",
-        jobDescription: newJobDescription,
-        minCgpa: newMinCgpa,
-        allowedBranches: newAllowedBranches,
-        maxBacklogsAllowed: newMaxBacklogs,
-        requiredSkills: newRequiredSkills,
-        hasConflict: !!conflict,
-        conflictSeverity: conflict ? "CRITICAL" : undefined,
-        conflictDescription: conflict
-          ? `Double-booking at '${newVenue}' with ${conflict.companyName} on ${newDate}.`
-          : undefined,
-      };
-      setDrives([newDriveItem, ...drives]);
+      console.warn("Could not post drive to backend.");
     } finally {
       setIsSubmitting(false);
       setCreateModalOpen(false);
@@ -415,101 +309,124 @@ export default function DrivesPage() {
             )}
           </div>
 
-          <div className="space-y-4">
-            {drives.map((d) => (
-              <div
-                key={d.id}
-                className={`card-squarespace p-6 transition-all border ${
-                  d.hasConflict
-                    ? "border-rose-300 bg-rose-50/15 ring-1 ring-rose-200"
-                    : "border-campus-border hover:border-slate-300"
-                }`}
-              >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                  {/* Left: Company & Timing */}
-                  <div className="flex items-start gap-4">
-                    <CompanyLogo
-                      companyName={d.companyName}
-                      size="lg"
-                      className="rounded-xl shrink-0"
-                    />
-
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-xl font-bold text-campus-text-primary">
-                          {d.companyName}
-                        </h3>
-                        {d.hasConflict && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white uppercase tracking-wider">
-                            Collision Alert
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-sm font-medium text-campus-primary mt-0.5">
-                        {d.roleTitle} &bull; <span className="font-semibold">{d.ctcLpa} LPA</span>
-                      </div>
-
-                      {/* Schedule Meta */}
-                      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-campus-text-secondary">
-                        <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                          <Calendar className="w-3.5 h-3.5 text-campus-primary" /> {d.driveDate}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" /> Slot: {d.slot}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5" /> {d.venue}
-                        </span>
-                        <span>Panels: {d.panelsCount}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Actions & Status */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                    {d.hasConflict ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setActiveConflictModal(d)}
-                        icon={<Sparkles className="w-4 h-4" />}
-                      >
-                        Resolve Conflict
-                      </Button>
-                    ) : (
-                      <Link href="/matching">
-                        <Button variant="secondary" size="sm">
-                          View Shortlist
-                        </Button>
-                      </Link>
-                    )}
-
-                    <StatusPill
-                      label={d.status}
-                      variant={d.status === "ACTIVE" ? "success" : "primary"}
-                    />
-                  </div>
-                </div>
-
-                {/* Conflict Banner if detected */}
-                {d.hasConflict && (
-                  <div className="mt-4 pt-4 border-t border-rose-200/70 flex items-start justify-between gap-4 text-xs text-rose-800">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>{d.conflictDescription}</span>
-                    </div>
-                    <button
-                      onClick={() => setActiveConflictModal(d)}
-                      className="text-xs font-bold text-rose-700 hover:text-rose-900 underline shrink-0 cursor-pointer"
-                    >
-                      View Suggested Free Slots &rarr;
-                    </button>
-                  </div>
-                )}
+          {loading ? (
+            <div className="card-squarespace p-12 text-center space-y-3">
+              <div className="w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
+              <div className="text-sm font-semibold text-slate-700">Loading placement drives for your college...</div>
+            </div>
+          ) : drives.length === 0 ? (
+            <div className="card-squarespace p-12 text-center space-y-4 border border-dashed border-slate-300 bg-white">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                <Calendar className="w-6 h-6" />
               </div>
-            ))}
-          </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">No recruitment drives posted yet</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  There are currently no placement drives scheduled for your campus. Click below to schedule and announce your first drive.
+                </p>
+              </div>
+              <Button variant="primary" size="sm" onClick={() => setCreateModalOpen(true)}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                Schedule New Drive
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {drives.map((d) => (
+                <div
+                  key={d.id}
+                  className={`card-squarespace p-6 transition-all border ${
+                    d.hasConflict
+                      ? "border-rose-300 bg-rose-50/15 ring-1 ring-rose-200"
+                      : "border-campus-border hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    {/* Left: Company & Timing */}
+                    <div className="flex items-start gap-4">
+                      <CompanyLogo
+                        companyName={d.companyName}
+                        size="lg"
+                        className="rounded-xl shrink-0"
+                      />
+
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-xl font-bold text-campus-text-primary">
+                            {d.companyName}
+                          </h3>
+                          {d.hasConflict && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white uppercase tracking-wider">
+                              Collision Alert
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-sm font-medium text-campus-primary mt-0.5">
+                          {d.roleTitle} &bull; <span className="font-semibold">{d.ctcLpa} LPA</span>
+                        </div>
+
+                        {/* Schedule Meta */}
+                        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-campus-text-secondary">
+                          <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
+                            <Calendar className="w-3.5 h-3.5 text-campus-primary" /> {d.driveDate}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> Slot: {d.slot}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5" /> {d.venue}
+                          </span>
+                          <span>Panels: {d.panelsCount}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Actions & Status */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                      {d.hasConflict ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setActiveConflictModal(d)}
+                          icon={<Sparkles className="w-4 h-4" />}
+                        >
+                          Resolve Conflict
+                        </Button>
+                      ) : (
+                        <Link href="/matching">
+                          <Button variant="secondary" size="sm">
+                            View Shortlist
+                          </Button>
+                        </Link>
+                      )}
+
+                      <StatusPill
+                        label={d.status}
+                        variant={d.status === "ACTIVE" ? "success" : "primary"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Conflict Banner if detected */}
+                  {d.hasConflict && (
+                    <div className="mt-4 pt-4 border-t border-rose-200/70 flex items-start justify-between gap-4 text-xs text-rose-800">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{d.conflictDescription}</span>
+                      </div>
+                      <button
+                        onClick={() => setActiveConflictModal(d)}
+                        className="text-xs font-bold text-rose-700 hover:text-rose-900 underline shrink-0 cursor-pointer"
+                      >
+                        View Suggested Free Slots &rarr;
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Conflict Resolution Drawer Modal (PRD FR-E5) */}

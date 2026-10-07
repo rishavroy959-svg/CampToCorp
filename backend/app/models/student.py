@@ -21,10 +21,12 @@ class Student(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=True)
+    college_id = Column(Integer, ForeignKey("colleges.id"), nullable=True, index=True)
     roll_number = Column(String, unique=True, index=True, nullable=False)
     full_name = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     phone = Column(String, nullable=True)
+    rejection_reason = Column(String, nullable=True)
     branch = Column(String, index=True, nullable=False)  # CSE, ECE, MECH, etc.
     batch_year = Column(Integer, default=2026)
     

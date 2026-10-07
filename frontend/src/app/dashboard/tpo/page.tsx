@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import {
   KPICard,
   StatusPill,
@@ -46,7 +47,27 @@ import {
   Eye,
   Star,
   Flame,
+  UserCheck,
+  UserX,
+  Shield,
+  Phone,
+  Mail,
 } from "lucide-react";
+
+export interface PendingStudent {
+  user_id: number;
+  student_id?: number | null;
+  full_name: string;
+  email: string;
+  roll_number: string;
+  branch: string;
+  cgpa: number;
+  batch_year: number;
+  status: string;
+  registered_at: string;
+  phone?: string | null;
+  rejection_reason?: string | null;
+}
 
 interface StudentRecord {
   id: number;
@@ -178,18 +199,28 @@ interface AnalyticsOverview {
 }
 
 export default function TPODashboardPage() {
+  const { user, token } = useAuth();
+
   const [activeTab, setActiveTab] = useState<
-    "overview" | "drive_wizard" | "applicants" | "scheduling" | "offers" | "directory"
+    "overview" | "drive_wizard" | "applicants" | "scheduling" | "offers" | "directory" | "verifications"
   >("overview");
 
   // Core Data States
   const [students, setStudents] = useState<StudentRecord[]>([]);
+  const [pendingStudents, setPendingStudents] = useState<PendingStudent[]>([]);
   const [drives, setDrives] = useState<DriveRecord[]>([]);
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [offers, setOffers] = useState<OfferRecord[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Verification Management States
+  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState<PendingStudent | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState("");
+  const [verificationSearchQuery, setVerificationSearchQuery] = useState("");
+  const [verificationBranchFilter, setVerificationBranchFilter] = useState("ALL");
 
   // Filter States for Student Directory
   const [selectedBranch, setSelectedBranch] = useState("ALL");
@@ -277,23 +308,55 @@ export default function TPODashboardPage() {
   const [activeIntervention, setActiveIntervention] = useState<StudentRecord | null>(null);
   const [interventionStrategy, setInterventionStrategy] = useState<"mentor" | "bootcamp" | "counseling">("mentor");
 
-  // Load all data
+  // Load all data — the backend scopes every list to the authenticated TPO's own college
   const fetchData = async () => {
     try {
       setRefreshing(true);
+      const authToken =
+        token ||
+        (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") : null);
+      if (!authToken) {
+        setStudents([]);
+        setDrives([]);
+        setApplications([]);
+        setOffers([]);
+        setAnalytics(null);
+        return;
+      }
+      const opts: RequestInit = {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${authToken}` },
+      };
+      const API = "http://127.0.0.1:8000/api/v1";
+
       const [resStudents, resDrives, resApps, resOffers, resAnalytics] = await Promise.all([
-        fetch("http://127.0.0.1:8000/api/v1/students/", { cache: "no-store" }),
-        fetch("http://127.0.0.1:8000/api/v1/drives/", { cache: "no-store" }),
-        fetch("http://127.0.0.1:8000/api/v1/applications/", { cache: "no-store" }),
-        fetch("http://127.0.0.1:8000/api/v1/offers/", { cache: "no-store" }),
-        fetch("http://127.0.0.1:8000/api/v1/analytics/overview", { cache: "no-store" }),
+        fetch(`${API}/students/`, opts),
+        fetch(`${API}/drives/`, opts),
+        fetch(`${API}/applications/`, opts),
+        fetch(`${API}/offers/`, opts),
+        fetch(`${API}/analytics/overview`, opts),
       ]);
 
-      if (resStudents.ok) setStudents(await resStudents.json());
-      if (resDrives.ok) setDrives(await resDrives.json());
-      if (resApps.ok) setApplications(await resApps.json());
-      if (resOffers.ok) setOffers(await resOffers.json());
-      if (resAnalytics.ok) setAnalytics(await resAnalytics.json());
+      setStudents(resStudents.ok ? await resStudents.json() : []);
+      setDrives(resDrives.ok ? await resDrives.json() : []);
+      setApplications(resApps.ok ? await resApps.json() : []);
+      setOffers(resOffers.ok ? await resOffers.json() : []);
+      setAnalytics(resAnalytics.ok ? await resAnalytics.json() : null);
+
+      // Fetch pending verification requests if authenticated
+      if (authToken) {
+        try {
+          const resPending = await fetch("http://127.0.0.1:8000/api/v1/colleges/pending-students", {
+            headers: { Authorization: `Bearer ${authToken}` },
+            cache: "no-store",
+          });
+          if (resPending.ok) {
+            setPendingStudents(await resPending.json());
+          }
+        } catch (e) {
+          console.warn("Could not load pending verifications:", e);
+        }
+      }
     } catch (err) {
       console.warn("Backend fetch failed:", err);
     } finally {
@@ -304,7 +367,67 @@ export default function TPODashboardPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user?.college_id, token]);
+
+  // Handle Approve Student
+  const handleApproveStudent = async (userId: number, studentName: string) => {
+    setVerifyingId(userId);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/colleges/verify-student/${userId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+        },
+        body: JSON.stringify({ action: "APPROVE" }),
+      });
+      if (res.ok) {
+        await fetchData();
+        alert(`Student "${studentName}" has been successfully verified! Full placement access granted.`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Failed to verify student.");
+      }
+    } catch {
+      alert("Network error while approving student.");
+    } finally {
+      setVerifyingId(null);
+    }
+  };
+
+  // Handle Reject Student
+  const handleRejectStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showRejectModal) return;
+    setVerifyingId(showRejectModal.user_id);
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/v1/colleges/verify-student/${showRejectModal.user_id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+        },
+        body: JSON.stringify({
+          action: "REJECT",
+          reason: rejectionReasonInput.trim() || "Information could not be verified by the Placement Cell.",
+        }),
+      });
+      if (res.ok) {
+        const rejectedName = showRejectModal.full_name;
+        setShowRejectModal(null);
+        setRejectionReasonInput("");
+        await fetchData();
+        alert(`Student registration for "${rejectedName}" was rejected with the given reason.`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Failed to reject student.");
+      }
+    } catch {
+      alert("Network error while rejecting student.");
+    } finally {
+      setVerifyingId(null);
+    }
+  };
 
   // Handle JD auto-parsing helper
   const handleAutoParseJD = () => {
@@ -393,7 +516,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify(payload),
       });
@@ -499,7 +622,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           application_ids: selectedAppIds,
@@ -530,7 +653,7 @@ export default function TPODashboardPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           new_status: roundStatus,
@@ -559,11 +682,11 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           docs_verified: !currentVerified,
-          verified_by: "Dr. Rajesh Sharma (Head of Placements)",
+          verified_by: user?.fullName ? `${user.fullName} (Head of Placements)` : "Placement Officer",
           notes: !currentVerified ? "Signed offer letter and bond terms approved." : "Revoked verification.",
         }),
       });
@@ -613,7 +736,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           new_date: rescheduleDate,
@@ -643,7 +766,7 @@ export default function TPODashboardPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           drive_date: quickEditDate || quickEditDrive.drive_date,
@@ -704,7 +827,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-jwt-token-campuslink",
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           roll_number: newRollNo.trim().toUpperCase(),
@@ -751,6 +874,16 @@ export default function TPODashboardPage() {
       s.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.roll_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.email.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesBranch && matchesSearch;
+  });
+
+  // Filtered Pending Students
+  const filteredPendingStudents = pendingStudents.filter((s) => {
+    const matchesBranch = verificationBranchFilter === "ALL" || s.branch === verificationBranchFilter;
+    const matchesSearch =
+      s.full_name.toLowerCase().includes(verificationSearchQuery.toLowerCase()) ||
+      s.roll_number.toLowerCase().includes(verificationSearchQuery.toLowerCase()) ||
+      s.email.toLowerCase().includes(verificationSearchQuery.toLowerCase());
     return matchesBranch && matchesSearch;
   });
 
@@ -803,7 +936,12 @@ export default function TPODashboardPage() {
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-campus-text-secondary uppercase tracking-wider mb-1">
               <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-              <span>University Training & Placement Cell</span>
+              <span>{user?.college_name || "University"} Training & Placement Cell</span>
+              {user?.college_code && (
+                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                  {user.college_code}
+                </span>
+              )}
               <span>/</span>
               <span>Administrative Operations</span>
             </div>
@@ -811,7 +949,7 @@ export default function TPODashboardPage() {
               Placement Officer (TPO) Command Center
             </h1>
             <p className="text-sm text-campus-text-secondary mt-1">
-              Unified placement lifecycle management, strict eligibility enforcement, applicant tracking, venue clash resolution, and accreditation reporting.
+              Unified placement lifecycle management for {user?.college_name || "your institution"}, strict eligibility enforcement, applicant tracking, student approvals, and accreditation reporting.
             </p>
           </div>
 
@@ -857,6 +995,12 @@ export default function TPODashboardPage() {
         <div className="flex items-center gap-2 border-b border-campus-border overflow-x-auto pb-1">
           {[
             { id: "overview", label: "Overview & Analytics", icon: <TrendingUp className="w-4 h-4" /> },
+            { 
+              id: "verifications", 
+              label: `Student Verifications (${pendingStudents.length})`, 
+              icon: <ShieldCheck className="w-4 h-4" />,
+              badge: pendingStudents.length > 0 ? pendingStudents.length : undefined 
+            },
             { id: "drive_wizard", label: "Job Posting Wizard", icon: <Building className="w-4 h-4" /> },
             { id: "applicants", label: `Applicant Tracking (${applications.length})`, icon: <Users className="w-4 h-4" /> },
             { id: "scheduling", label: `Schedule & Clashes (${drives.filter(d => d.has_conflict).length} conflicts)`, icon: <Calendar className="w-4 h-4" /> },
@@ -874,6 +1018,11 @@ export default function TPODashboardPage() {
             >
               {tab.icon}
               <span>{tab.label}</span>
+              {tab.badge && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-extrabold animate-pulse">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -2016,6 +2165,234 @@ export default function TPODashboardPage() {
         )}
 
         {/* ========================================================================= */}
+        {/* TAB 7: STUDENT VERIFICATION & ONBOARDING (COLLEGE MULTI-TENANCY) */}
+        {/* ========================================================================= */}
+        {activeTab === "verifications" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Institute Identity Banner */}
+            <div className="card-squarespace p-6 bg-gradient-to-r from-blue-900/10 via-indigo-900/5 to-transparent border border-blue-200/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-campus-primary" />
+                  <h2 className="text-lg font-black text-campus-text-primary">
+                    Student Enrollment & Verification Desk
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
+                    {user?.college_name || "Institution"}
+                  </span>
+                  {user?.college_code && (
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-mono font-bold">
+                      {user.college_code}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-campus-text-secondary max-w-3xl leading-relaxed">
+                  To prevent unauthorized access and protect campus placement integrity, students who register under <strong className="text-slate-800">{user?.college_name || "your institution"}</strong> must be authenticated by the Placement Cell. Unverified students are restricted from viewing exclusive drives and submitting applications.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="text-right">
+                  <div className="text-2xl font-black text-amber-600">
+                    {pendingStudents.length}
+                  </div>
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    Pending Approvals
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />}
+                  onClick={fetchData}
+                >
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="card-squarespace p-4 space-y-1 border-l-4 border-amber-500">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Pending Verification
+                </span>
+                <div className="text-2xl font-black text-amber-600">
+                  {pendingStudents.length}
+                </div>
+                <div className="text-[11px] text-slate-500">Awaiting placement officer review</div>
+              </div>
+
+              <div className="card-squarespace p-4 space-y-1 border-l-4 border-emerald-500">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Active Verified Students
+                </span>
+                <div className="text-2xl font-black text-emerald-700">
+                  {students.length}
+                </div>
+                <div className="text-[11px] text-emerald-600 font-medium">Eligible for drives & assessments</div>
+              </div>
+
+              <div className="card-squarespace p-4 space-y-1 border-l-4 border-blue-500">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                  Verification Protocol
+                </span>
+                <div className="text-base font-bold text-blue-900 flex items-center gap-1 mt-1">
+                  <Shield className="w-4 h-4 text-blue-600" />
+                  Role-Based Gatekeeper
+                </div>
+                <div className="text-[11px] text-slate-500">Instant database synchronization</div>
+              </div>
+            </div>
+
+            {/* Main Pending Students List Card */}
+            <div className="card-squarespace p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-campus-border pb-4">
+                <div>
+                  <h3 className="text-base font-bold text-campus-text-primary">
+                    Pending Student Registrations ({filteredPendingStudents.length})
+                  </h3>
+                  <p className="text-xs text-campus-text-secondary mt-0.5">
+                    Review academic details, roll numbers, and grant campus placement authorization.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Branch filter */}
+                  <select
+                    value={verificationBranchFilter}
+                    onChange={(e) => setVerificationBranchFilter(e.target.value)}
+                    className="p-2 rounded-lg border border-campus-border bg-white text-xs font-semibold"
+                  >
+                    <option value="ALL">All Branches</option>
+                    <option value="CSE">CSE</option>
+                    <option value="IT">IT</option>
+                    <option value="ECE">ECE</option>
+                    <option value="MECH">MECH</option>
+                    <option value="CIVIL">CIVIL</option>
+                    <option value="EE">EE</option>
+                  </select>
+
+                  {/* Search input */}
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search name, roll number, email..."
+                      value={verificationSearchQuery}
+                      onChange={(e) => setVerificationSearchQuery(e.target.value)}
+                      className="pl-9 pr-3 py-2 rounded-lg border border-campus-border text-xs w-64 focus:outline-none focus:border-campus-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {filteredPendingStudents.length === 0 ? (
+                <div className="py-16 text-center space-y-3">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <div className="text-base font-bold text-slate-800">
+                    {pendingStudents.length === 0
+                      ? "All Caught Up! No Pending Student Requests"
+                      : "No students matching current filter"}
+                  </div>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {pendingStudents.length === 0
+                      ? `Every student registered under ${user?.college_name || "your institution"} has been verified. New registrations will automatically appear here for approval.`
+                      : "Try resetting your search query or branch filter above."}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-campus-border text-slate-500 font-bold uppercase tracking-wider bg-slate-50/50">
+                        <th className="py-3 px-3">Student Name & Contact</th>
+                        <th className="py-3 px-2">College Roll No</th>
+                        <th className="py-3 px-2">Branch & Batch</th>
+                        <th className="py-3 px-2">CGPA</th>
+                        <th className="py-3 px-2">Registered On</th>
+                        <th className="py-3 px-3 text-right">Verification Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredPendingStudents.map((st) => (
+                        <tr key={st.user_id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3.5 px-3">
+                            <div className="font-bold text-campus-text-primary text-sm">
+                              {st.full_name}
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                              <span className="flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-slate-400" />
+                                {st.email}
+                              </span>
+                              {st.phone && (
+                                <span className="flex items-center gap-1 text-slate-400">
+                                  &bull; <Phone className="w-3 h-3" /> {st.phone}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-2">
+                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                              {st.roll_number}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-2">
+                            <div className="font-semibold text-slate-800">{st.branch}</div>
+                            <div className="text-[10px] text-slate-400">Class of {st.batch_year}</div>
+                          </td>
+
+                          <td className="py-3.5 px-2 font-bold text-slate-800">
+                            {st.cgpa > 0 ? st.cgpa.toFixed(2) : "N/A"}
+                          </td>
+
+                          <td className="py-3.5 px-2 text-slate-500 text-[11px]">
+                            {st.registered_at ? new Date(st.registered_at).toLocaleDateString() : "Recent"}
+                          </td>
+
+                          <td className="py-3.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:border-rose-300"
+                                icon={<UserX className="w-3.5 h-3.5" />}
+                                disabled={verifyingId === st.user_id}
+                                onClick={() => {
+                                  setShowRejectModal(st);
+                                  setRejectionReasonInput("");
+                                }}
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white"
+                                icon={<UserCheck className="w-3.5 h-3.5" />}
+                                disabled={verifyingId === st.user_id}
+                                onClick={() => handleApproveStudent(st.user_id, st.full_name)}
+                              >
+                                {verifyingId === st.user_id ? "Verifying..." : "Approve Access"}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
         {/* MODAL: MANUAL STUDENT ENTRY */}
         {/* ========================================================================= */}
         {showAddModal && (
@@ -2677,6 +3054,91 @@ export default function TPODashboardPage() {
                   </Button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODAL: REJECT STUDENT VERIFICATION */}
+        {/* ========================================================================= */}
+        {showRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+            <div className="card-squarespace max-w-lg w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-campus-border pb-3">
+                <div className="flex items-center gap-2">
+                  <UserX className="w-5 h-5 text-rose-600" />
+                  <h3 className="text-base font-bold text-campus-text-primary">
+                    Reject Verification: {showRejectModal.full_name}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowRejectModal(null)}
+                  className="text-slate-400 hover:text-slate-600 font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleRejectStudent} className="space-y-4 text-xs">
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 leading-relaxed">
+                  <span className="font-bold">Student Record:</span> {showRejectModal.roll_number} &bull; {showRejectModal.email} &bull; {showRejectModal.branch}
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Quick Preset Reasons
+                  </label>
+                  <div className="grid grid-cols-1 gap-1.5 mb-2">
+                    {[
+                      "Roll number not found in college enrollment registry.",
+                      "Department / Branch mismatch with official student records.",
+                      "Batch graduation year mismatch.",
+                      "Duplicate account or unverified institutional credentials.",
+                    ].map((reason, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setRejectionReasonInput(reason)}
+                        className="text-left px-2.5 py-1.5 rounded border border-slate-200 hover:bg-slate-50 text-[11px] text-slate-700 hover:border-slate-300 transition-colors"
+                      >
+                        &bull; {reason}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Official Rejection Reason (Visible to student upon login) *
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Enter the specific reason for rejecting this student's placement access..."
+                    value={rejectionReasonInput}
+                    onChange={(e) => setRejectionReasonInput(e.target.value)}
+                    className="w-full p-2.5 rounded-lg border border-campus-border text-xs focus:outline-none focus:border-rose-500"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-campus-border">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    type="button"
+                    onClick={() => setShowRejectModal(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="submit"
+                    className="bg-rose-600 hover:bg-rose-700 text-white border-rose-600"
+                    disabled={verifyingId === showRejectModal.user_id}
+                  >
+                    {verifyingId === showRejectModal.user_id ? "Processing..." : "Confirm Rejection"}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
         )}

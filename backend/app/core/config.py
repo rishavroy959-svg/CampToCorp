@@ -1,5 +1,10 @@
+import os
 from typing import List
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "CampusLink"
@@ -17,11 +22,21 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8000",
     ]
 
-    DATABASE_URL: str = "sqlite:///./campuslink.db"
+    DATABASE_URL: str = "sqlite:///./camptocorp.db"
+
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def resolve_sqlite_path(cls, v: str) -> str:
+        if v.startswith("sqlite:///./"):
+            db_rel_path = v[len("sqlite:///./"):]
+            abs_db_path = os.path.join(BACKEND_DIR, db_rel_path).replace("\\", "/")
+            return f"sqlite:///{abs_db_path}"
+        return v
 
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        env_file = (ENV_PATH, ".env")
         extra = "ignore"
 
 settings = Settings()
+

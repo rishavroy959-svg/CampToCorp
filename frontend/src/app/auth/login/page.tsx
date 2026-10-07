@@ -45,7 +45,8 @@ function LoginFormContent() {
   const { loginCustom } = useAuth();
 
   const queryRole = (searchParams.get("role") as UserRole) || "STUDENT";
-  const [authMode, setAuthMode] = useState<"signin" | "register">("signin");
+  const queryMode = searchParams.get("mode") === "register" ? "register" : "signin";
+  const [authMode, setAuthMode] = useState<"signin" | "register">(queryMode);
   const [selectedRole, setSelectedRole] = useState<UserRole>(
     queryRole === "PLACEMENT_OFFICER" ? "PLACEMENT_OFFICER" : "STUDENT"
   );
@@ -57,7 +58,11 @@ function LoginFormContent() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Detailed Role-Specific Registration Fields
+  const [colleges, setColleges] = useState<Array<{ id: number; name: string; code: string; city?: string }>>([]);
+  const [selectedCollegeId, setSelectedCollegeId] = useState<number | "new">(1);
   const [collegeName, setCollegeName] = useState("");
+  const [collegeCode, setCollegeCode] = useState("");
+  const [collegeCity, setCollegeCity] = useState("");
   const [branch, setBranch] = useState("Computer Science Engineering (CSE)");
   const [rollNumber, setRollNumber] = useState("");
   const [cgpa, setCgpa] = useState("8.50");
@@ -69,6 +74,24 @@ function LoginFormContent() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Fetch available colleges list
+  React.useEffect(() => {
+    fetch("http://127.0.0.1:8000/api/v1/colleges/")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setColleges(data);
+          // Default to GITA or first college if available
+          const gita = data.find((c) => c.code === "GITA") || data[0];
+          setSelectedCollegeId(gita.id);
+          setCollegeName(gita.name);
+          setCollegeCode(gita.code);
+          setInstituteCode(gita.code);
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch colleges:", err));
+  }, []);
 
   // Handle Authentication & Detailed Registration
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,8 +105,12 @@ function LoginFormContent() {
     }
 
     if (authMode === "register") {
-      if (!fullName.trim() || !collegeName.trim()) {
-        setErrorMsg("Please complete all required fields including your full name and college/institute name.");
+      if (!fullName.trim()) {
+        setErrorMsg("Please enter your full name.");
+        return;
+      }
+      if (selectedCollegeId === "new" && (!collegeName.trim() || !collegeCode.trim())) {
+        setErrorMsg("Please provide both College Name and unique College Code (e.g. GITA).");
         return;
       }
       if (selectedRole === "STUDENT" && (!rollNumber.trim() || !cgpa.trim())) {
@@ -96,92 +123,124 @@ function LoginFormContent() {
 
     try {
       if (authMode === "register") {
-        // Attempt backend API registration call
-        try {
-          const regRes = await fetch("http://127.0.0.1:8000/api/v1/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: email.trim(),
-              password: password.trim(),
-              full_name: fullName.trim(),
-              role: selectedRole,
-            }),
-          });
+        const payload: any = {
+          email: email.trim(),
+          password: password.trim(),
+          full_name: fullName.trim(),
+          role: selectedRole,
+          department: selectedRole === "STUDENT" ? branch : designation,
+          phone_number: phone.trim() || undefined,
+          roll_number: selectedRole === "STUDENT" ? rollNumber.trim() : undefined,
+          cgpa: selectedRole === "STUDENT" && cgpa ? parseFloat(cgpa) : undefined,
+          batch_year: selectedRole === "STUDENT" && batchYear ? parseInt(batchYear) : undefined,
+        };
 
-          if (!regRes.ok) {
-            const errData = await regRes.json().catch(() => ({}));
-            if (regRes.status !== 400) {
-              console.warn("Backend registration warning:", errData);
-            }
-          }
-        } catch (apiErr) {
-          console.warn("Backend registration endpoint offline, processing client registration session:", apiErr);
+        if (typeof selectedCollegeId === "number") {
+          payload.college_id = selectedCollegeId;
+          const chosen = colleges.find((c) => c.id === selectedCollegeId);
+          payload.institution_name = chosen?.name || collegeName;
+          payload.institution_code = chosen?.code || collegeCode;
+        } else {
+          payload.college_name = collegeName.trim();
+          payload.college_code = collegeCode.trim().toUpperCase();
+          payload.institution_name = collegeName.trim();
+          payload.institution_code = collegeCode.trim().toUpperCase();
         }
 
-        setSuccessMsg(`Account created for ${fullName.trim()}! Logging into ${selectedRole === "STUDENT" ? "Student" : "TPO"} Portal...`);
-
-        // Save complete custom profile into session storage
-        loginCustom({
-          id: Date.now(),
-          email: email.trim(),
-          fullName: fullName.trim(),
-          role: selectedRole,
-          title: selectedRole === "STUDENT" 
-            ? `${branch} (${batchYear}) • ${collegeName}` 
-            : `${designation} • ${collegeName}`,
+        const regRes = await fetch("http://127.0.0.1:8000/api/v1/auth/register", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
 
+        if (!regRes.ok) {
+          const errData = await regRes.json().catch(() => ({}));
+          throw new Error(errData.detail || "Registration failed. Please check your credentials.");
+        }
+
+        const data = await regRes.json();
+        const registeredUser = data.user;
+
+        if (selectedRole === "STUDENT") {
+          setSuccessMsg(`Account created for ${fullName.trim()}! Your profile is pending verification by your College TPO. Entering student portal...`);
+        } else {
+          setSuccessMsg(`TPO Account created for ${fullName.trim()} at ${registeredUser.institution_name}! Entering TPO Command Center...`);
+        }
+
+        loginCustom(
+          {
+            id: registeredUser.id,
+            email: registeredUser.email,
+            fullName: registeredUser.full_name,
+            role: registeredUser.role,
+            institution: registeredUser.institution_name,
+            college_id: registeredUser.college_id ?? null,
+            college_name: registeredUser.institution_name ?? null,
+            college_code: registeredUser.institution_code ?? null,
+            status: registeredUser.status,
+            title: selectedRole === "STUDENT" 
+              ? `${branch} (${batchYear}) • ${registeredUser.institution_name}` 
+              : `${designation} • ${registeredUser.institution_name}`,
+          },
+          data.access_token,
+          data.session_id
+        );
+
         setTimeout(() => {
-          if (selectedRole === "STUDENT") router.push("/dashboard/student");
+          if (registeredUser.role === "STUDENT") router.push("/dashboard/student");
           else router.push("/dashboard/tpo");
-        }, 800);
+        }, 600);
       } else {
-        // Sign In Flow
-        try {
-          const loginRes = await fetch("http://127.0.0.1:8000/api/v1/auth/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: email.trim(),
-              password: password.trim(),
-            }),
-          });
-
-          if (loginRes.ok) {
-            const data = await loginRes.json();
-            const backendUser = data.user;
-            loginCustom(
-              {
-                id: backendUser?.id || Date.now(),
-                email: backendUser?.email || email,
-                fullName: backendUser?.full_name || email.split("@")[0],
-                role: backendUser?.role || selectedRole,
-                title: (backendUser?.role || selectedRole) === "STUDENT" ? "Student Candidate" : "Placement Officer (TPO)",
-              },
-              data.access_token
-            );
-            if ((backendUser?.role || selectedRole) === "STUDENT") router.push("/dashboard/student");
-            else router.push("/dashboard/tpo");
-            return;
-          }
-        } catch (backendErr) {
-          console.warn("Backend API login offline, setting local user session:", backendErr);
-        }
-
-        const fallbackName = fullName.trim() || email.split("@")[0].replace(".", " ");
-        loginCustom({
-          id: Date.now(),
-          email: email.trim(),
-          fullName: fallbackName.charAt(0).toUpperCase() + fallbackName.slice(1),
-          role: selectedRole,
-          title: selectedRole === "STUDENT" ? "Student Candidate" : "Placement Officer (TPO)",
+        // Sign In Flow with Real Cryptographic Verification & Brute-Force Shield
+        const loginRes = await fetch("http://127.0.0.1:8000/api/v1/auth/login", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email.trim(),
+            password: password.trim(),
+            device_info: typeof navigator !== "undefined" ? `${navigator.userAgent.slice(0, 80)}` : "Browser Session",
+          }),
         });
 
+        if (!loginRes.ok) {
+          const errData = await loginRes.json().catch(() => ({}));
+          if (loginRes.status === 423) {
+            throw new Error(`🔒 ${errData.detail || "Account temporarily locked due to consecutive failed attempts."}`);
+          }
+          if (loginRes.status === 403) {
+            throw new Error(`🚫 ${errData.detail || "Account suspended or deactivated by access governance policy."}`);
+          }
+          throw new Error(errData.detail || "Incorrect email or password.");
+        }
+
+        const data = await loginRes.json();
+        const backendUser = data.user;
+
+        setSuccessMsg(`Identity verified! Welcome back, ${backendUser.full_name}.`);
+
+        loginCustom(
+          {
+            id: backendUser.id,
+            email: backendUser.email,
+            fullName: backendUser.full_name,
+            role: backendUser.role,
+            institution: backendUser.institution_name,
+            college_id: backendUser.college_id ?? null,
+            college_name: backendUser.institution_name ?? null,
+            college_code: backendUser.institution_code ?? null,
+            status: backendUser.status,
+            title: backendUser.role === "STUDENT" ? "Student Candidate" : "Placement Officer (TPO)",
+          },
+          data.access_token,
+          data.session_id
+        );
+
         setTimeout(() => {
-          if (selectedRole === "STUDENT") router.push("/dashboard/student");
+          if (backendUser.role === "STUDENT") router.push("/dashboard/student");
           else router.push("/dashboard/tpo");
-        }, 400);
+        }, 500);
       }
     } catch (err: any) {
       setErrorMsg(err.message || "An authentication error occurred.");
@@ -321,22 +380,80 @@ function LoginFormContent() {
                   </div>
                 </div>
 
-                {/* College / Institute Name */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    College / University Name <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Building className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      required
-                      value={collegeName}
-                      onChange={(e) => setCollegeName(e.target.value)}
-                      placeholder="e.g. Delhi Technological University / IIT Delhi / NIT Trichy"
-                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium text-slate-900"
-                    />
+                {/* College / Institution Selection */}
+                <div className="space-y-3 p-3.5 rounded-2xl bg-indigo-50/40 border border-indigo-100">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-800">
+                      Select Your College / University <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[10px] text-indigo-600 font-semibold">Institutional Tenancy</span>
                   </div>
+                  
+                  <div className="relative">
+                    <Building className="w-4 h-4 text-indigo-500 absolute left-3 top-3" />
+                    <select
+                      value={selectedCollegeId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "new") {
+                          setSelectedCollegeId("new");
+                          setCollegeName("");
+                          setCollegeCode("");
+                        } else {
+                          const numId = parseInt(val);
+                          setSelectedCollegeId(numId);
+                          const found = colleges.find((c) => c.id === numId);
+                          if (found) {
+                            setCollegeName(found.name);
+                            setCollegeCode(found.code);
+                            setInstituteCode(found.code);
+                          }
+                        }
+                      }}
+                      className="w-full text-xs pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold text-slate-900 shadow-sm"
+                    >
+                      {colleges.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.code}){c.city ? ` — ${c.city}` : ""}
+                        </option>
+                      ))}
+                      <option value="new">+ Register a New College / Institute</option>
+                    </select>
+                  </div>
+
+                  {selectedCollegeId === "new" && (
+                    <div className="grid sm:grid-cols-2 gap-3 pt-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          New College Full Name <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={collegeName}
+                          onChange={(e) => setCollegeName(e.target.value)}
+                          placeholder="e.g. Gandhi Institute for Technological Advancement"
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                          Unique Code (e.g. GITA) <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={collegeCode}
+                          onChange={(e) => {
+                            setCollegeCode(e.target.value.toUpperCase());
+                            setInstituteCode(e.target.value.toUpperCase());
+                          }}
+                          placeholder="e.g. GITA"
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-900 font-bold uppercase"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* STUDENT SPECIFIC FIELDS */}
@@ -554,6 +671,50 @@ function LoginFormContent() {
                       className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Gateway Demo Accounts for Evaluation / Testing */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Demo Testing Gateway Accounts
+                    </span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold">
+                      Evaluation Only
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("tpo@campuslink.edu");
+                        setPassword("password123");
+                        setSelectedRole("PLACEMENT_OFFICER");
+                      }}
+                      className="p-2.5 rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50/50 text-left transition-all hover:scale-[1.01]"
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700">
+                        <Shield className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span className="truncate">Dr. Rajesh Sharma</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Demo NIT TPO Officer</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEmail("aarav.patel@campuslink.edu");
+                        setPassword("password123");
+                        setSelectedRole("STUDENT");
+                      }}
+                      className="p-2.5 rounded-xl border border-emerald-200 bg-white hover:bg-emerald-50/50 text-left transition-all hover:scale-[1.01]"
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                        <GraduationCap className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">Aarav Patel</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Demo NIT Student</div>
                     </button>
                   </div>
                 </div>
