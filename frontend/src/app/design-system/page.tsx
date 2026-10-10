@@ -9,7 +9,7 @@ import {
   StatusPill,
   KPICard,
   Button,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import { ArrowLeft, Users, Calendar, Award, AlertTriangle } from "lucide-react";
 
 export default function DesignSystemPage() {
@@ -28,7 +28,7 @@ export default function DesignSystemPage() {
               <ArrowLeft className="w-3.5 h-3.5" /> Back to Home
             </Link>
             <h1 className="text-3xl font-extrabold tracking-tight text-campus-text-primary">
-              CampusLink Design System & Component Library
+              CampToCorp Design System & Component Library
             </h1>
             <p className="text-sm text-campus-text-secondary mt-1">
               Inspired by Squarespace principles — High Contrast, Editorial Typography, and Explainable AI.

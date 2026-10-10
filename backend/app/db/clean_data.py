@@ -14,7 +14,7 @@ def purge_all_demo_data():
     db: Session = SessionLocal()
 
     try:
-        print("[*] Purging demo data from CampusLink database...")
+        print("[*] Purging demo data from CampToCorp database...")
 
         # 1. Clean matches, offers, conflict logs
         db.query(ConflictLog).delete()
@@ -30,7 +30,7 @@ def purge_all_demo_data():
 
         # 4. Insert clean TPO user
         tpo_user = User(
-            email="tpo@campuslink.edu",
+            email="tpo@camptocorp.edu",
             full_name="Dr. Rajesh Sharma",
             hashed_password=get_password_hash("tpo123"),
             role=UserRole.PLACEMENT_OFFICER,
@@ -40,7 +40,7 @@ def purge_all_demo_data():
 
         # 5. Insert clean Student user
         student_user = User(
-            email="aarav.patel@campuslink.edu",
+            email="aarav.patel@camptocorp.edu",
             full_name="Aarav Patel",
             hashed_password=get_password_hash("student123"),
             role=UserRole.STUDENT,
@@ -55,7 +55,7 @@ def purge_all_demo_data():
             user_id=student_user.id,
             roll_number="22CS014",
             full_name="Aarav Patel",
-            email="aarav.patel@campuslink.edu",
+            email="aarav.patel@camptocorp.edu",
             phone="+91 98765 43210",
             branch="CSE",
             batch_year=2026,

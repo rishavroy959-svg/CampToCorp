@@ -8,9 +8,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://campuslink:campuslink123@db:5432/campuslink_db
+      - DATABASE_URL=postgresql://camptocorp:camptocorp123@db:5432/camptocorp_db
       - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=campuslink-dev-secret-key-32chars-long
+      - SECRET_KEY=camptocorp-dev-secret-key-32chars-long
     depends_on:
       - db
       - redis
@@ -36,9 +36,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=campuslink
-      - POSTGRES_PASSWORD=campuslink123
-      - POSTGRES_DB=campuslink_db
+      - POSTGRES_USER=camptocorp
+      - POSTGRES_PASSWORD=camptocorp123
+      - POSTGRES_DB=camptocorp_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

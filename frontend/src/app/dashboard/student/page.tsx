@@ -12,7 +12,7 @@ import {
   KPICard,
   PlacementCalendar,
   CompanyLogo,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   GraduationCap,
   Sparkles,
@@ -297,7 +297,7 @@ function StudentDashboardContent() {
 
       // Fetch ONLY the authenticated user's own student record
       const authToken = typeof window !== "undefined"
-        ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+        ? (localStorage.getItem("camptocorp_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
         : null;
       const resMe = await fetch("http://127.0.0.1:8000/api/v1/students/me", {
         cache: "no-store",
@@ -311,8 +311,8 @@ function StudentDashboardContent() {
       const current = normalizeProfile(await resMe.json());
       const currentStudent = current;
       if (typeof window !== "undefined") {
-        localStorage.setItem("campuslink_student_id", current.id.toString());
-        localStorage.setItem("campuslink_student_profile", JSON.stringify(current));
+        localStorage.setItem("camptocorp_student_id", current.id.toString());
+        localStorage.setItem("camptocorp_student_profile", JSON.stringify(current));
       }
       setProfile(current);
       setEditCollegeId(current.college_id ? current.college_id.toString() : "");
@@ -400,10 +400,10 @@ function StudentDashboardContent() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedProfile = localStorage.getItem("campuslink_student_profile");
+      const savedProfile = localStorage.getItem("camptocorp_student_profile");
       let loggedInEmail = "";
       try {
-        loggedInEmail = (JSON.parse(localStorage.getItem("campuslink_custom_user") || "{}").email || "").toLowerCase();
+        loggedInEmail = (JSON.parse(localStorage.getItem("camptocorp_custom_user") || "{}").email || "").toLowerCase();
       } catch (e) {}
       if (savedProfile) {
         try {
@@ -751,7 +751,7 @@ function StudentDashboardContent() {
         setEditBatchYear((updated.batch_year || parsedBatch).toString());
         if (updated.college_id) setEditCollegeId(updated.college_id.toString());
         if (typeof window !== "undefined") {
-          localStorage.setItem("campuslink_student_profile", JSON.stringify(updated));
+          localStorage.setItem("camptocorp_student_profile", JSON.stringify(updated));
         }
         if (updateUser) {
           updateUser({
@@ -797,7 +797,7 @@ function StudentDashboardContent() {
       };
       setProfile(localUpdated);
       if (typeof window !== "undefined") {
-        localStorage.setItem("campuslink_student_profile", JSON.stringify(localUpdated));
+        localStorage.setItem("camptocorp_student_profile", JSON.stringify(localUpdated));
       }
       if (updateUser) {
         updateUser({
@@ -911,7 +911,7 @@ function StudentDashboardContent() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : ""}`,
+          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : ""}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -1170,7 +1170,7 @@ function StudentDashboardContent() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="font-extrabold text-base text-white">CampusLink AI Placement Mentor is Active</h4>
+                    <h4 className="font-extrabold text-base text-white">CampToCorp AI Placement Mentor is Active</h4>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-400/20 text-emerald-300 border border-emerald-400/30">
                       Live Grounded in Placement DB
                     </span>
@@ -3027,7 +3027,7 @@ function StudentDashboardContent() {
                     <span>Always-On AI Placement Assistant</span>
                   </div>
                   <p className="text-slate-600 text-xs leading-relaxed">
-                    The CampusLink AI ChatBot at the bottom right maintains your full student profile context and can answer eligibility questions, evaluate mock answers, and suggest resume tweaks!
+                    The CampToCorp AI ChatBot at the bottom right maintains your full student profile context and can answer eligibility questions, evaluate mock answers, and suggest resume tweaks!
                   </p>
                 </div>
                 <button
@@ -3289,7 +3289,7 @@ function StudentDashboardContent() {
 
                 {/* Institutional Stamp Footer */}
                 <div className="pt-6 border-t-2 border-slate-200 flex items-center justify-between text-[10px] text-slate-400">
-                  <div>CampusLink University Placement & Drive Management System &bull; Cryptographically Verified</div>
+                  <div>CampToCorp University Placement & Drive Management System &bull; Cryptographically Verified</div>
                   <div className="font-bold text-slate-600">Document ID: CL-{profile.roll_number}-2026</div>
                 </div>
               </div>

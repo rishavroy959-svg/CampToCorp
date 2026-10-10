@@ -6,7 +6,7 @@ import {
   KPICard,
   StatusPill,
   Button,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   BarChart3,
   TrendingUp,
@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
       try {
         setLoading(true);
         const token = typeof window !== "undefined"
-          ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+          ? (localStorage.getItem("camptocorp_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
           : null;
         const res = await fetch("http://127.0.0.1:8000/api/v1/analytics/overview", {
           cache: "no-store",

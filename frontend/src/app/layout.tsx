@@ -4,7 +4,7 @@ import { AuthProvider } from "@/lib/auth-context";
 import { Navbar } from "@/components/navigation/Navbar";
 
 export const metadata: Metadata = {
-  title: "CampusLink | AI-Powered Campus-to-Corporate Placement & Analytics",
+  title: "CampToCorp | AI-Powered Campus-to-Corporate Placement & Analytics",
   description:
     "End-to-end placement management, student readiness profiling, AI recruiter matching, and conflict-free drive scheduling.",
 };

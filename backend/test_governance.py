@@ -8,7 +8,7 @@ def test():
         print("1. Seed Demo status:", resp.status)
 
     # 2. Login as TPO
-    login_payload = json.dumps({"email": "tpo@campuslink.edu", "password": "password123"}).encode()
+    login_payload = json.dumps({"email": "tpo@camptocorp.edu", "password": "password123"}).encode()
     req = urllib.request.Request(
         "http://127.0.0.1:8000/api/v1/auth/login",
         data=login_payload,

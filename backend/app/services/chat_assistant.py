@@ -12,7 +12,7 @@ from app.models.application import DriveApplication
 from app.models.offer import Offer
 from app.services.ai_matching import evaluate_hard_eligibility, calculate_composite_fit, calculate_student_readiness
 
-logger = logging.getLogger("campuslink.chat")
+logger = logging.getLogger("camptocorp.chat")
 
 # Models to attempt in priority order
 GEMINI_MODELS = [
@@ -535,7 +535,7 @@ def generate_synthesized_doubt_response(
             reply += f"- **Language Core:** Widely adopted in modern cloud infrastructure and backend systems.\n"
 
         reply += (
-            f"\n💡 **CampusLink Career Advice:** Since you are in **{branch}**, having {detected_lang.upper()} verified on your profile "
+            f"\n💡 **CampToCorp Career Advice:** Since you are in **{branch}**, having {detected_lang.upper()} verified on your profile "
             f"directly strengthens your resume for technical shortlisting rounds."
         )
         return {
@@ -554,7 +554,7 @@ def generate_synthesized_doubt_response(
     # Hinglish & Hindi query resolution
     if any(h in q_lower for h in ["kaise", "kya", "kare", "karna", "batao", "samjhao", "selection", "package", "placement", "doubt", "puchte"]):
         reply = (
-            f"### 🤝 CampusLink Placement Mentor (Doubt Solver)\n\n"
+            f"### 🤝 CampToCorp Placement Mentor (Doubt Solver)\n\n"
             f"Aapne poocha: *\"{query}\"*\n\n"
             f"Aapke live profile records (**Branch: {branch}**, **CGPA: {cgpa:.2f}**) ke anusaar, yahan detailed step-by-step guidance hai:\n\n"
             f"1. **Core Preparation Strategy:**\n"

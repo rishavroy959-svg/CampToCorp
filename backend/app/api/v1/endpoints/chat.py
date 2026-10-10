@@ -27,7 +27,7 @@ class ChatMessageResponse(BaseModel):
     student_name: Optional[str] = None
     student_cgpa: Optional[float] = None
     student_branch: Optional[str] = None
-    model_used: Optional[str] = "campuslink-ai"
+    model_used: Optional[str] = "camptocorp-ai"
 
 @router.post("/message", response_model=ChatMessageResponse)
 async def process_chat_message(
@@ -64,7 +64,7 @@ async def process_chat_message(
         or os.environ.get("GOOGLE_API_KEY")
     )
 
-    model_used = "campuslink-ai"
+    model_used = "camptocorp-ai"
     final_reply = None
     suggested_prompts = []
     action_recs = []
@@ -81,7 +81,7 @@ async def process_chat_message(
             f"- Active Campus Drives in DB: {len(drives)} scheduled drives (including Google Cloud, AWS, Microsoft, Goldman Sachs).\n"
         )
         system_prompt = (
-            "You are the CampusLink AI Placement & Technical Mentor.\n"
+            "You are the CampToCorp AI Placement & Technical Mentor.\n"
             "You must answer ANY doubt, question, or inquiry the student asks with complete accuracy, "
             "clarity, and depth (including technical concepts, coding, DSA, system design, OS, DBMS, networking, "
             "frameworks, company-specific rounds, HR questions, or general career queries in English or Hindi/Hinglish).\n"

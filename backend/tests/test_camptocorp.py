@@ -19,7 +19,7 @@ from app.services.scheduler import (
 )
 from app.services.interview_analyzer import evaluate_interview_response
 
-class TestCampusLinkAIPlatform(unittest.TestCase):
+class TestCampToCorpAIPlatform(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         Base.metadata.create_all(bind=engine)

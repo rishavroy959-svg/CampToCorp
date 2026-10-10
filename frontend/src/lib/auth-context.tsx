@@ -23,7 +23,7 @@ export const ACTIVE_ROLES: UserRole[] = ["PLACEMENT_OFFICER", "STUDENT"];
 export const PRESET_PERSONAS: Record<UserRole, AuthUser> = {
   PLACEMENT_OFFICER: {
     id: 1,
-    email: "tpo@campuslink.edu",
+    email: "tpo@camptocorp.edu",
     fullName: "Dr. Rajesh Sharma",
     role: "PLACEMENT_OFFICER",
     title: "Head of Training & Placements (TPO)",
@@ -31,7 +31,7 @@ export const PRESET_PERSONAS: Record<UserRole, AuthUser> = {
   },
   STUDENT: {
     id: 2,
-    email: "aarav.patel@campuslink.edu",
+    email: "aarav.patel@camptocorp.edu",
     fullName: "Aarav Patel",
     role: "STUDENT",
     title: "B.Tech Computer Science (Batch 2026)",
@@ -47,7 +47,7 @@ export const PRESET_PERSONAS: Record<UserRole, AuthUser> = {
   },
   MENTOR: {
     id: 4,
-    email: "mentor.cs@campuslink.edu",
+    email: "mentor.cs@camptocorp.edu",
     fullName: "Prof. Anita Desai",
     role: "MENTOR",
     title: "Department Mentor",
@@ -87,8 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     // 1. Check local storage for persistent profile
-    const savedCustomUser = typeof window !== "undefined" ? localStorage.getItem("campuslink_custom_user") : null;
-    const savedToken = typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") : null;
+    const savedCustomUser = typeof window !== "undefined" ? localStorage.getItem("camptocorp_custom_user") : null;
+    const savedToken = typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") : null;
 
     if (savedCustomUser) {
       try {
@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         // Keep cookies in sync with edge middleware
         setCookie("camptocorp_role", parsed.role);
-        setCookie("camptocorp_session", localStorage.getItem("campuslink_session_id") || `sess_${parsed.id}`);
+        setCookie("camptocorp_session", localStorage.getItem("camptocorp_session_id") || `sess_${parsed.id}`);
         setCookie("camptocorp_access_token", activeToken);
         return;
       } catch (e) {
@@ -116,13 +116,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     if (typeof window !== "undefined") {
       // Drop any cached student data from a previous account
-      localStorage.removeItem("campuslink_student_id");
-      localStorage.removeItem("campuslink_student_profile");
-      localStorage.setItem("campuslink_custom_user", JSON.stringify(userObj));
-      localStorage.setItem("campuslink_active_role", userObj.role);
-      localStorage.setItem("campuslink_jwt_token", activeToken);
+      localStorage.removeItem("camptocorp_student_id");
+      localStorage.removeItem("camptocorp_student_profile");
+      localStorage.setItem("camptocorp_custom_user", JSON.stringify(userObj));
+      localStorage.setItem("camptocorp_active_role", userObj.role);
       localStorage.setItem("camptocorp_jwt_token", activeToken);
-      localStorage.setItem("campuslink_session_id", activeSessionId);
+      localStorage.setItem("camptocorp_jwt_token", activeToken);
+      localStorage.setItem("camptocorp_session_id", activeSessionId);
 
       // Sync Cookies for Next.js Edge Middleware
       setCookie("camptocorp_role", userObj.role);
@@ -155,13 +155,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setToken(null);
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem("campuslink_active_role");
-      localStorage.removeItem("campuslink_custom_user");
-      localStorage.removeItem("campuslink_jwt_token");
+      localStorage.removeItem("camptocorp_active_role");
+      localStorage.removeItem("camptocorp_custom_user");
       localStorage.removeItem("camptocorp_jwt_token");
-      localStorage.removeItem("campuslink_session_id");
-      localStorage.removeItem("campuslink_student_id");
-      localStorage.removeItem("campuslink_student_profile");
+      localStorage.removeItem("camptocorp_jwt_token");
+      localStorage.removeItem("camptocorp_session_id");
+      localStorage.removeItem("camptocorp_student_id");
+      localStorage.removeItem("camptocorp_student_profile");
 
       deleteCookie("camptocorp_role");
       deleteCookie("camptocorp_session");
@@ -175,7 +175,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!prev) return null;
       const updated = { ...prev, ...data };
       if (typeof window !== "undefined") {
-        localStorage.setItem("campuslink_custom_user", JSON.stringify(updated));
+        localStorage.setItem("camptocorp_custom_user", JSON.stringify(updated));
       }
       return updated;
     });

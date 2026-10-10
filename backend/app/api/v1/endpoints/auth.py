@@ -25,14 +25,14 @@ router = APIRouter(prefix="/auth", tags=["Authentication & Identity Governance"]
 # Pre-defined Demo Personas per PRD Section 4
 DEMO_ACCOUNTS = [
     {
-        "email": "tpo@campuslink.edu",
+        "email": "tpo@camptocorp.edu",
         "full_name": "Dr. Rajesh Sharma (Head TPO)",
         "role": UserRole.PLACEMENT_OFFICER,
         "password": "password123",
         "description": "Full placement cell administration, drive scheduling & conflicts, command analytics.",
     },
     {
-        "email": "aarav.patel@campuslink.edu",
+        "email": "aarav.patel@camptocorp.edu",
         "full_name": "Aarav Patel (Computer Science)",
         "role": UserRole.STUDENT,
         "password": "password123",
@@ -46,7 +46,7 @@ DEMO_ACCOUNTS = [
         "description": "Job description upload, automated AI matching, candidate pool ranking.",
     },
     {
-        "email": "mentor.cs@campuslink.edu",
+        "email": "mentor.cs@camptocorp.edu",
         "full_name": "Prof. Anita Desai (Department Mentor)",
         "role": UserRole.MENTOR,
         "password": "password123",
@@ -279,4 +279,4 @@ def trigger_seed_database():
     """Trigger programmatic database seeding (PRD Deliverable 10)."""
     from app.db.seed_data import seed_database
     seed_database()
-    return {"message": "CampusLink database primed successfully with 50 students, 6 drives, and offers."}
+    return {"message": "CampToCorp database primed successfully with 50 students, 6 drives, and offers."}

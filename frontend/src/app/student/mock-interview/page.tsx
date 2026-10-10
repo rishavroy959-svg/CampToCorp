@@ -8,7 +8,7 @@ import {
   Button,
   StatusPill,
   KPICard,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   Sparkles,
   Bot,

@@ -7,7 +7,7 @@ import {
   Button,
   KPICard,
   CompanyLogo,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   Calendar,
   AlertTriangle,
@@ -63,7 +63,7 @@ export default function DrivesPage() {
     try {
       setLoading(true);
       const token = typeof window !== "undefined"
-        ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+        ? (localStorage.getItem("camptocorp_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
         : null;
       const res = await fetch("http://127.0.0.1:8000/api/v1/drives/", {
         cache: "no-store",
@@ -200,7 +200,7 @@ export default function DrivesPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : ""}`,
+          Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : ""}`,
         },
         body: JSON.stringify(drivePayload),
       });

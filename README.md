@@ -1,6 +1,6 @@
-# CampusLink (CampToCorp) — AI-Powered Campus-to-Corporate Placement Platform
+# CampToCorp (CampToCorp) — AI-Powered Campus-to-Corporate Placement Platform
 
-CampusLink is an end-to-end placement management and analytics ecosystem designed to digitise, automate, and intelligently optimise the university placement lifecycle.
+CampToCorp is an end-to-end placement management and analytics ecosystem designed to digitise, automate, and intelligently optimise the university placement lifecycle.
 
 ## Architectural Overview
 

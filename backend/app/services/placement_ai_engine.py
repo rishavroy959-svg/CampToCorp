@@ -14,7 +14,7 @@ from app.models.drive import Drive
 from app.models.offer import Offer
 from app.services.chat_assistant import call_gemini_api
 
-logger = logging.getLogger("campuslink.ai_engine")
+logger = logging.getLogger("camptocorp.ai_engine")
 
 # ============================================================================
 # 1. NLP TECH SKILL TAXONOMY & VOCABULARY
@@ -561,7 +561,7 @@ async def generate_generative_ai_roadmap(
     req_skills_str = ", ".join(required_skills or ["Python", "Kubernetes", "Linux", "System Design"])
 
     prompt = (
-        f"You are the CampusLink AI Placement Director and Senior Technical Recruiter.\n"
+        f"You are the CampToCorp AI Placement Director and Senior Technical Recruiter.\n"
         f"Candidate Profile: {student.full_name}, Branch: {student.branch}, CGPA: {student.cgpa:.2f}\n"
         f"Verified Tech Skills: {student_skills_str}\n"
         f"Target Role: {role_title} at {company_name}\n"
@@ -578,7 +578,7 @@ async def generate_generative_ai_roadmap(
         try:
             llm_output = await call_gemini_api(
                 api_key=effective_api_key,
-                system_prompt="You are the CampusLink Chief AI Placement Architect providing high-impact career diagnostic roadmaps.",
+                system_prompt="You are the CampToCorp Chief AI Placement Architect providing high-impact career diagnostic roadmaps.",
                 user_prompt=prompt,
                 history=[]
             )
@@ -635,7 +635,7 @@ async def generate_generative_ai_roadmap(
                 "Structure 4 project scenarios using the STAR (Situation, Task, Action, Result) methodology.",
                 "Prepare thoughtful questions to ask the hiring engineering manager."
             ],
-            "recommended_resources": ["CampusLink AI Mentor Chat", "Company Engineering Blog"]
+            "recommended_resources": ["CampToCorp AI Mentor Chat", "Company Engineering Blog"]
         }
     ]
 
@@ -701,7 +701,7 @@ async def generate_generative_ai_roadmap(
         "critical_skill_gaps": [s for s in required_skills if s.lower() not in [sk.lower() for sk in (student.skills or [])]][:4],
         "personalized_14day_roadmap": roadmap_days,
         "curated_interview_questions": interview_questions,
-        "model_used": "gemini-3.5-flash" if llm_output else "campuslink-ai-grounded"
+        "model_used": "gemini-3.5-flash" if llm_output else "camptocorp-ai-grounded"
     }
 
 

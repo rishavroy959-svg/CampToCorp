@@ -19,7 +19,7 @@ def seed_database():
     db: Session = SessionLocal()
 
     try:
-        print("[*] Seeding CampusLink database...")
+        print("[*] Seeding CampToCorp database...")
 
         # 1. Clean existing records if any
         db.query(ConflictLog).delete()
@@ -33,13 +33,13 @@ def seed_database():
         # 2. Seed Demo Users (4 PRD Stakeholder Personas)
         users = [
             User(
-                email="tpo@campuslink.edu",
+                email="tpo@camptocorp.edu",
                 full_name="Dr. Rajesh Sharma",
                 hashed_password=get_password_hash("tpo123"),
                 role=UserRole.PLACEMENT_OFFICER,
             ),
             User(
-                email="aarav.patel@campuslink.edu",
+                email="aarav.patel@camptocorp.edu",
                 full_name="Aarav Patel",
                 hashed_password=get_password_hash("student123"),
                 role=UserRole.STUDENT,
@@ -51,14 +51,14 @@ def seed_database():
                 role=UserRole.RECRUITER,
             ),
             User(
-                email="anita.desai@campuslink.edu",
+                email="anita.desai@camptocorp.edu",
                 full_name="Prof. Anita Desai",
                 hashed_password=get_password_hash("mentor123"),
                 role=UserRole.MENTOR,
             ),
             User(
-                email="admin@campuslink.edu",
-                full_name="CampusLink System Admin",
+                email="admin@camptocorp.edu",
+                full_name="CampToCorp System Admin",
                 hashed_password=get_password_hash("admin123"),
                 role=UserRole.ADMIN,
             ),
@@ -77,7 +77,7 @@ def seed_database():
         aarav = Student(
             roll_number="22CS001",
             full_name="Aarav Patel",
-            email="aarav.patel@campuslink.edu",
+            email="aarav.patel@camptocorp.edu",
             phone="+91 98765 43210",
             branch="CSE",
             batch_year=2026,
@@ -121,7 +121,7 @@ def seed_database():
             b_num = branch_counts[branch]
             branch_counts[branch] += 1
             roll_no = f"22{branch}{b_num:03d}"
-            email = f"{fname.lower()}.{lname.lower()}{b_num}@campuslink.edu"
+            email = f"{fname.lower()}.{lname.lower()}{b_num}@camptocorp.edu"
 
             # Distribution: 35% Tier 1, 35% Tier 2, 20% Tier 3, 10% Tier 4 (At-risk)
             tier_rand = random.random()
@@ -380,7 +380,7 @@ def seed_database():
                 docs_verified=True,
                 docs_submitted=True,
                 verified_by="Dr. Rajesh Sharma",
-                offer_letter_url="https://campuslink.edu/docs/offers/cisco_22cs001.pdf",
+                offer_letter_url="https://camptocorp.edu/docs/offers/cisco_22cs001.pdf",
                 notes="Summer internship converted to full-time Pre-Placement Offer (PPO).",
             )
         ]
@@ -412,7 +412,7 @@ def seed_database():
         db.commit()
         print(f"[+] {len(offers_data)} Student Offers & PPOs seeded with document verification.")
 
-        print("\n[+] Seed complete! CampusLink is fully primed with 50 students, 6 drives, AI scores, and offers.")
+        print("\n[+] Seed complete! CampToCorp is fully primed with 50 students, 6 drives, AI scores, and offers.")
 
     except Exception as e:
         db.rollback()

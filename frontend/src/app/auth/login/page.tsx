@@ -263,11 +263,11 @@ function LoginFormContent() {
               C
             </div>
             <span className="text-2xl font-black tracking-tight text-slate-900">
-              CampusLink
+              CampToCorp
             </span>
           </Link>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">
-            {authMode === "signin" ? "Sign In to CampusLink" : "Create a CampusLink Account"}
+            {authMode === "signin" ? "Sign In to CampToCorp" : "Create a CampToCorp Account"}
           </h1>
           <p className="text-xs text-slate-600 max-w-md mx-auto">
             {authMode === "signin"
@@ -689,7 +689,7 @@ function LoginFormContent() {
                     <button
                       type="button"
                       onClick={() => {
-                        setEmail("tpo@campuslink.edu");
+                        setEmail("tpo@camptocorp.edu");
                         setPassword("password123");
                         setSelectedRole("PLACEMENT_OFFICER");
                       }}
@@ -704,7 +704,7 @@ function LoginFormContent() {
                     <button
                       type="button"
                       onClick={() => {
-                        setEmail("aarav.patel@campuslink.edu");
+                        setEmail("aarav.patel@camptocorp.edu");
                         setPassword("password123");
                         setSelectedRole("STUDENT");
                       }}
@@ -749,7 +749,7 @@ function LoginFormContent() {
           {/* Footer Info */}
           <div className="text-center pt-2 border-t border-slate-100">
             <p className="text-[11px] text-slate-500">
-              Protected by CampusLink Institutional Authentication & Role-Based Security
+              Protected by CampToCorp Institutional Authentication & Role-Based Security
             </p>
           </div>
         </div>

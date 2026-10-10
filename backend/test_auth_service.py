@@ -34,7 +34,7 @@ def run_tests():
 
     # 2. Login as TPO
     login_payload = {
-        "email": "tpo@campuslink.edu",
+        "email": "tpo@camptocorp.edu",
         "password": "password123",
         "device_info": "Automated Test Suite / Python",
     }
@@ -53,7 +53,7 @@ def run_tests():
     # 4. Get Current User (/me)
     status, body, _ = make_req("/me", headers={"Authorization": f"Bearer {tpo_token}"})
     assert status == 200, f"/me failed: {body}"
-    assert body["email"] == "tpo@campuslink.edu"
+    assert body["email"] == "tpo@camptocorp.edu"
     print(f"[PASS] 4. Authenticated profile check (/me) OK: {body['full_name']}")
 
     # 5. Token Refresh Rotation
@@ -70,7 +70,7 @@ def run_tests():
     print("[PASS] 6. Token Reuse / Breach Detection triggered OK (Reused token rejected)")
 
     # 7. Register a New Student (Test profile linking & roll number assignment)
-    test_student_email = f"student_{int(time.time())}@campuslink.edu"
+    test_student_email = f"student_{int(time.time())}@camptocorp.edu"
     reg_payload = {
         "email": test_student_email,
         "password": "SecretPassword123!",

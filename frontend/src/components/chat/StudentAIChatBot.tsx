@@ -94,7 +94,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
   // Load saved API key from localStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedKey = localStorage.getItem("campuslink_gemini_key") || "";
+      const savedKey = localStorage.getItem("camptocorp_gemini_key") || "";
       setGeminiApiKey(savedKey);
       setTempKeyInput(savedKey);
     }
@@ -105,14 +105,14 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
     {
       id: "welcome-1",
       sender: "bot",
-      text: `Hello ${studentProfile?.full_name ? `**${studentProfile.full_name}**` : "there"}! 👋\n\nI am your **CampusLink AI Placement & Technical Mentor**.\n\nAsk me **ANY doubt or question**! I can help you with:\n- 💡 **Technical Concepts & Doubts:** OS (Deadlock, Paging), DBMS (ACID, Normalization), Networks (TCP/UDP, DNS), OOP, & System Design.\n- 💻 **DSA & Coding Strategies:** Dynamic Programming, Trees, Graphs, Two Pointers, Time/Space complexities.\n- 🏢 **Company-Specific Blueprints:** Google, AWS, Microsoft, Goldman Sachs, Cisco rounds & interview questions.\n- 🎯 **Your Placement Records:** Live eligible drives matching your CGPA (**${studentProfile?.cgpa?.toFixed(2) || "8.8"}**), branch cutoffs, & readiness score.\n- 🎙️ **HR & Interview Prep:** 'Tell me about yourself', STAR behavioral questions, resume ATS optimization.\n\n*Type any doubt below in English or Hinglish!*`,
+      text: `Hello ${studentProfile?.full_name ? `**${studentProfile.full_name}**` : "there"}! 👋\n\nI am your **CampToCorp AI Placement & Technical Mentor**.\n\nAsk me **ANY doubt or question**! I can help you with:\n- 💡 **Technical Concepts & Doubts:** OS (Deadlock, Paging), DBMS (ACID, Normalization), Networks (TCP/UDP, DNS), OOP, & System Design.\n- 💻 **DSA & Coding Strategies:** Dynamic Programming, Trees, Graphs, Two Pointers, Time/Space complexities.\n- 🏢 **Company-Specific Blueprints:** Google, AWS, Microsoft, Goldman Sachs, Cisco rounds & interview questions.\n- 🎯 **Your Placement Records:** Live eligible drives matching your CGPA (**${studentProfile?.cgpa?.toFixed(2) || "8.8"}**), branch cutoffs, & readiness score.\n- 🎙️ **HR & Interview Prep:** 'Tell me about yourself', STAR behavioral questions, resume ATS optimization.\n\n*Type any doubt below in English or Hinglish!*`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       suggestedPrompts: DEFAULT_PROMPTS,
       actionRecommendations: [
         { title: "Check Eligible Drives", action: "VIEW_DRIVES" },
         { title: "Review Readiness Score", action: "VIEW_READINESS" },
       ],
-      modelUsed: "campuslink-ai",
+      modelUsed: "camptocorp-ai",
     },
   ]);
 
@@ -136,9 +136,9 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
     setGeminiApiKey(trimmed);
     if (typeof window !== "undefined") {
       if (trimmed) {
-        localStorage.setItem("campuslink_gemini_key", trimmed);
+        localStorage.setItem("camptocorp_gemini_key", trimmed);
       } else {
-        localStorage.removeItem("campuslink_gemini_key");
+        localStorage.removeItem("camptocorp_gemini_key");
       }
     }
     setShowKeyModal(false);
@@ -168,8 +168,8 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
     setIsLoading(true);
 
     try {
-      const studentId = studentProfile?.id || (typeof window !== "undefined" ? parseInt(localStorage.getItem("campuslink_student_id") || "1") : 1);
-      const activeKey = geminiApiKey || (typeof window !== "undefined" ? localStorage.getItem("campuslink_gemini_key") || "" : "");
+      const studentId = studentProfile?.id || (typeof window !== "undefined" ? parseInt(localStorage.getItem("camptocorp_student_id") || "1") : 1);
+      const activeKey = geminiApiKey || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_gemini_key") || "" : "");
 
       // 1. Try sending message to local FastAPI backend
       let backendSuccess = false;
@@ -198,7 +198,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
             suggestedPrompts: data.suggested_prompts && data.suggested_prompts.length > 0 ? data.suggested_prompts : DEFAULT_PROMPTS,
             actionRecommendations: data.action_recommendations || [],
             readinessImpact: data.readiness_impact,
-            modelUsed: data.model_used || (activeKey ? "gemini-llm" : "campuslink-ai"),
+            modelUsed: data.model_used || (activeKey ? "gemini-llm" : "camptocorp-ai"),
           };
           setMessages((prev) => [...prev, botMessage]);
           backendSuccess = true;
@@ -221,7 +221,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
               body: JSON.stringify({
                 systemInstruction: {
                   parts: [{
-                    text: `You are the CampusLink AI Placement & Technical Mentor. Answer any technical, coding, DBMS, OS, networking, placement, or career doubt asked by the student clearly and accurately in GitHub markdown format.`
+                    text: `You are the CampToCorp AI Placement & Technical Mentor. Answer any technical, coding, DBMS, OS, networking, placement, or career doubt asked by the student clearly and accurately in GitHub markdown format.`
                   }]
                 },
                 contents: [
@@ -331,7 +331,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
           { title: "Check Eligible Drives", action: "VIEW_DRIVES" },
           { title: "Review Readiness Score", action: "VIEW_READINESS" },
         ],
-        modelUsed: geminiApiKey ? "gemini-llm" : "campuslink-ai",
+        modelUsed: geminiApiKey ? "gemini-llm" : "camptocorp-ai",
       },
     ]);
   };
@@ -523,7 +523,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
             {hasUnread && (
               <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 border-2 border-white rounded-full animate-bounce" />
             )}
-            <span className="sr-only">CampusLink Placement AI</span>
+            <span className="sr-only">CampToCorp Placement AI</span>
           </button>
         </div>
       )}
@@ -548,7 +548,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-black text-sm tracking-tight text-white">CampusLink AI Mentor</h3>
+                  <h3 className="font-black text-sm tracking-tight text-white">CampToCorp AI Mentor</h3>
                   <span className={`text-[10px] font-bold px-2 py-0.2 rounded-full border ${
                     geminiApiKey
                       ? "bg-purple-500/20 text-purple-200 border-purple-300/30"
@@ -675,7 +675,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
                       onClick={() => {
                         setTempKeyInput("");
                         setGeminiApiKey("");
-                        localStorage.removeItem("campuslink_gemini_key");
+                        localStorage.removeItem("camptocorp_gemini_key");
                         setShowKeyModal(false);
                         setKeySavedToast(true);
                         setTimeout(() => setKeySavedToast(false), 3000);
@@ -746,7 +746,7 @@ export const StudentAIChatBot: React.FC<StudentAIChatBotProps> = ({
                         <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
                           <span className="flex items-center gap-1 font-medium text-slate-500">
                             <Sparkles className="w-2.5 h-2.5 text-campus-accent" />
-                            {m.modelUsed === "gemini-llm" ? "Generative Gemini AI" : "CampusLink Placement & CS Intelligence"}
+                            {m.modelUsed === "gemini-llm" ? "Generative Gemini AI" : "CampToCorp Placement & CS Intelligence"}
                           </span>
                         </div>
                       )}

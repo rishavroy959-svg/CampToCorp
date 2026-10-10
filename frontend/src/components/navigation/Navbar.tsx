@@ -144,7 +144,7 @@ export const Navbar: React.FC = () => {
               C
             </div>
             <span className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-800">
-              CampusLink
+              CampToCorp
             </span>
           </Link>
           <Link
@@ -169,7 +169,7 @@ export const Navbar: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-800">
-                CampusLink
+                CampToCorp
               </span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200/80 flex items-center gap-1 shadow-2xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />

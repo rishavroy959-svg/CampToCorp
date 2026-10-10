@@ -218,7 +218,7 @@ export default function HomePage() {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600" />
             </span>
             <span className="text-xs font-bold text-slate-800 tracking-wide">
-              CAMPUSLINK 2.0 • AI-Powered Campus-to-Corporate Lifecycle
+              CAMPTOCORP 2.0 • AI-Powered Campus-to-Corporate Lifecycle
             </span>
             <Sparkles className="w-4 h-4 text-indigo-600" />
           </div>
@@ -235,7 +235,7 @@ export default function HomePage() {
           {/* Subtitle */}
           <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed font-normal">
             Eliminate spreadsheet chaos, drive collisions, and opaque shortlisting. 
-            CampusLink orchestrates <strong className="text-slate-800 font-semibold">explainable AI candidate matching</strong>, 
+            CampToCorp orchestrates <strong className="text-slate-800 font-semibold">explainable AI candidate matching</strong>, 
             automated conflict-free drive scheduling, and 4-tier student employability analytics.
           </p>
 
@@ -360,7 +360,7 @@ export default function HomePage() {
               <div className="w-3 h-3 rounded-full bg-amber-500" />
               <div className="w-3 h-3 rounded-full bg-emerald-500" />
               <span className="text-xs font-mono text-slate-400 ml-2">
-                campuslink-ai://engine/vector-match-v2.py
+                camptocorp-ai://engine/vector-match-v2.py
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs font-semibold bg-slate-800/80 px-3 py-1 rounded-full border border-slate-700 text-emerald-400">
@@ -674,7 +674,7 @@ export default function HomePage() {
               </h2>
               <p className="text-slate-600 text-sm leading-relaxed">
                 Campus recruitment involves dozens of concurrent companies demanding identical labs, auditoriums, 
-                and interview slots. CampusLink automatically runs constraint-satisfaction heuristics to eliminate 
+                and interview slots. CampToCorp automatically runs constraint-satisfaction heuristics to eliminate 
                 venue overlaps and student eligibility collisions before drives are published.
               </p>
 
@@ -908,7 +908,7 @@ export default function HomePage() {
               C
             </div>
             <div>
-              &copy; 2026 CampusLink (CampToCorp) — AI Placement & Analytics Platform.
+              &copy; 2026 CampToCorp (CampToCorp) — AI Placement & Analytics Platform.
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-6 font-medium">

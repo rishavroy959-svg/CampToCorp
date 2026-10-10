@@ -9,7 +9,7 @@ import {
   StatusPill,
   Button,
   CompanyLogo,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   Briefcase,
   SlidersHorizontal,
@@ -89,7 +89,7 @@ export default function MatchingScreen() {
       try {
         setLoading(true);
         const token = typeof window !== "undefined"
-          ? (localStorage.getItem("campuslink_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
+          ? (localStorage.getItem("camptocorp_jwt_token") || localStorage.getItem("camptocorp_jwt_token"))
           : null;
         const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 

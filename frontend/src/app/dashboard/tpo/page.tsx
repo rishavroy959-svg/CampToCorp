@@ -8,7 +8,7 @@ import {
   StatusPill,
   Button,
   CompanyLogo,
-} from "@/components/campuslink";
+} from "@/components/camptocorp";
 import {
   GraduationCap,
   Building,
@@ -314,7 +314,7 @@ export default function TPODashboardPage() {
       setRefreshing(true);
       const authToken =
         token ||
-        (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") : null);
+        (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") : null);
       if (!authToken) {
         setStudents([]);
         setDrives([]);
@@ -377,7 +377,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({ action: "APPROVE" }),
       });
@@ -405,7 +405,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           action: "REJECT",
@@ -516,7 +516,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify(payload),
       });
@@ -584,7 +584,7 @@ export default function TPODashboardPage() {
   const handleGenerateNIRFReport = () => {
     const reportRows = [
       ["NIRF / NAAC CRITERION 5.2.1 - CAMPUS PLACEMENT AUDIT REPORT"],
-      ["Institution: CampusLink University", "Academic Year: 2025-2026", `Generated: ${new Date().toLocaleDateString()}`],
+      ["Institution: CampToCorp University", "Academic Year: 2025-2026", `Generated: ${new Date().toLocaleDateString()}`],
       [""],
       ["Student Roll No", "Student Name", "Graduating Cohort", "Program / Branch", "Employer Name", "Designation", "CTC Package (LPA)", "Verification Status"],
       ...students
@@ -622,7 +622,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           application_ids: selectedAppIds,
@@ -653,7 +653,7 @@ export default function TPODashboardPage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           new_status: roundStatus,
@@ -682,7 +682,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           docs_verified: !currentVerified,
@@ -736,7 +736,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           new_date: rescheduleDate,
@@ -766,7 +766,7 @@ export default function TPODashboardPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           drive_date: quickEditDate || quickEditDrive.drive_date,
@@ -827,7 +827,7 @@ export default function TPODashboardPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("campuslink_jwt_token") || "" : "")}`,
+          Authorization: `Bearer ${token || (typeof window !== "undefined" ? localStorage.getItem("camptocorp_jwt_token") || "" : "")}`,
         },
         body: JSON.stringify({
           roll_number: newRollNo.trim().toUpperCase(),
@@ -2460,7 +2460,7 @@ export default function TPODashboardPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Official College Email *</label>
                   <input
                     type="email"
-                    placeholder="e.g. riya.sen@campuslink.edu"
+                    placeholder="e.g. riya.sen@camptocorp.edu"
                     value={newEmail}
                     onChange={(e) => setNewEmail(e.target.value)}
                     className="w-full p-2 rounded-lg border border-campus-border text-xs"

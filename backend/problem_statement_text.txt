@@ -1,5 +1,5 @@
 === PAGE 1 ===
-Problem Statement: CAMPUSLINK - AI Powered 
+Problem Statement: CAMPTOCORP - AI Powered 
 Campus-to-Corporate Placement Management & 
 Analytics Platform 
 Domain: EdTech + Artificial Intelligence / Placement & Career Services Automation 

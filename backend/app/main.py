@@ -18,7 +18,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    description="CampusLink - AI-Powered Campus-to-Corporate Placement Management & Analytics Platform API",
+    description="CampToCorp - AI-Powered Campus-to-Corporate Placement Management & Analytics Platform API",
 )
 
 if settings.BACKEND_CORS_ORIGINS:
@@ -36,7 +36,7 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 @app.get("/")
 def root():
     return {
-        "message": "Welcome to CampusLink API",
+        "message": "Welcome to CampToCorp API",
         "documentation": "/docs",
         "version": settings.VERSION
     }
